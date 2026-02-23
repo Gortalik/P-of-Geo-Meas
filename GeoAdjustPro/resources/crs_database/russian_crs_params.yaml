@@ -1,0 +1,32 @@
+ellipsoids:
+  krasovsky_1940:
+    semi_major_axis: 6378245.0
+    inverse_flattening: 298.3
+
+datums:
+  sk42:
+    name: "Пулково 1942 (СК-42)"
+    ellipsoid: "krasovsky_1940"
+  
+  sk95:
+    name: "Пулково 1995 (СК-95)"
+    ellipsoid: "krasovsky_1940"
+
+transformations:
+  sk42_to_sk95:
+    dx: -24.95  # м
+    dy: 122.47  # м
+    dz: -77.70  # м
+    accuracy_meters: 0.15
+
+msk_subjects:
+  "77":  # Москва
+    name: "МСК-50 (Москва)"
+    base_crs: "sk42"
+    central_meridian: 37.375
+    false_easting: 150000.0
+    false_northing: -4500000.0
+    datum_shift:
+      dx: -24.95
+      dy: 122.47
+      dz: -77.70

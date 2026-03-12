@@ -4,8 +4,6 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
-*.py~
-*.pyc~
 .Python
 build/
 develop-eggs/
@@ -22,36 +20,36 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-MANIFEST
 
 # Virtual environments
 venv/
-ENV/
 env/
+ENV/
 .venv/
 .env/
+
+# Testing
+.coverage
+coverage/
+htmlcov/
+.nosetests
+.unit_test_results.xml
+.pytest_cache/
+.coverage.*
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-
-# Logs
-*.log
+*~
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Coverage
-.coverage
-coverage/
-htmlcov/
-
-# Testing
-.pytest_cache/
-.mypy_cache/
+# Logs
+*.log
 
 # Environment variables
 .env

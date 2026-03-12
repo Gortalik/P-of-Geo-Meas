@@ -1,12 +1,11 @@
 import numpy as np
 from scipy import sparse
-from typing import Literal
+from typing import Literal, Tuple, Dict, Any
 import warnings
 
 
 class RobustEstimator:
-    """
-    Реализация робастных методов уравнивания:
+    """Реализация робастных методов уравнивания:
     - IRLS с функцией Хьюбера
     - IRLS с функцией Тьюки
     - L1-минимизация
@@ -15,12 +14,25 @@ class RobustEstimator:
     def __init__(self, method: Literal['huber', 'tukey', 'l1'] = 'huber'):
         self.method = method
         self.weights = None
-        
+        self.iterations = 0
+    
     def huber_weights(self, residuals: np.ndarray, c: float = 1.345) -> np.ndarray:
         """
-        Веса Хьюбера:
+        Веса по функции потерь Хьюбера
+        
+        Формула:
         если |r_i| ≤ c: w_i = 1
         если |r_i| > c: w_i = c / |r_i|
+        
+        Параметр c = 1.345 обеспечивает 95% асимптотической эффективности
+        при нормальном распределении ошибок.
+        
+        Параметры:
+        - residuals: стандартизованные остатки
+        - c: параметр функции Хьюбера (по умолчанию 1.345)
+        
+        Возвращает:
+        - weights: массив весов для каждого измерения
         """
         abs_res = np.abs(residuals)
         weights = np.where(abs_res <= c, 1.0, c / abs_res)
@@ -28,32 +40,74 @@ class RobustEstimator:
     
     def tukey_weights(self, residuals: np.ndarray, c: float = 4.685) -> np.ndarray:
         """
-        Веса Тьюки:
+        Веса по функции потерь Тьюки (би-вес)
+        
+        Формула:
         если |r_i| ≤ c: w_i = (1 - (r_i/c)^2)^2
         если |r_i| > c: w_i = 0
+        
+        Параметр c = 4.685 обеспечивает 95% эффективности.
+        Полностью подавляет влияние грубых ошибок (вес = 0 при |r_i| > c).
+        
+        Параметры:
+        - residuals: стандартизованные остатки
+        - c: параметр функции Тьюки (по умолчанию 4.685)
+        
+        Возвращает:
+        - weights: массив весов для каждого измерения
         """
         abs_res = np.abs(residuals)
         normalized_res = abs_res / c
-        weights = np.where(normalized_res <= 1.0, 
-                          (1 - normalized_res**2)**2, 
-                          0.0)
+        weights = np.where(normalized_res <= 1.0, (1 - normalized_res**2)**2, 0.0)
         return weights
     
-    def irls_adjustment(self, A: sparse.csr_matrix, l: np.ndarray, 
-                        initial_weights: np.ndarray = None, max_iter: int = 50, 
-                        tolerance: float = 1e-6) -> tuple:
+    def irls_adjustment(self, A: sparse.csr_matrix, 
+                       L: np.ndarray,
+                       initial_weights: np.ndarray = None,
+                       max_iter: int = 20,
+                       tolerance: float = 1e-6) -> Dict[str, Any]:
         """
-        Итеративно-переоценённый метод наименьших квадратов (IRLS)
+        Итеративно-перевзвешенный метод наименьших квадратов (IRLS)
+        
+        Алгоритм:
+        1. Начальное решение получается классическим МНК
+        2. Вычисляются стандартизованные остатки: r_i = v_i / (σ0 · √q_vv_i)
+        3. Обновление весов по выбранной функции потерь (Хьюбер/Тьюки)
+        4. Формирование новой весовой матрицы: P = diag(w) · P0 · diag(w)
+        5. Повторное решение нормальных уравнений
+        6. Итерации продолжаются до достижения сходимости
+        
+        Параметры:
+        - A: матрица коэффициентов уравнений поправок
+        - L: вектор свободных членов
+        - initial_weights: начальные веса (по умолчанию все = 1)
+        - max_iter: максимальное число итераций
+        - tolerance: критерий сходимости
+        
+        Возвращает:
+        - Словарь с результатами уравнивания
         """
-        n = len(l)
+        n = len(L)
         
         # Начальные веса
         if initial_weights is None:
             W = np.ones(n)
         else:
             W = initial_weights.copy()
-            
+        
+        # Начальная весовая матрица
         P = sparse.diags(W)
+        
+        # Хранение истории итераций
+        history = {
+            'sigma0': [],
+            'max_correction': [],
+            'weights': []
+        }
+        
+        dx = None
+        residuals = None
+        sigma0 = None
         
         for iteration in range(max_iter):
             # Сохраняем предыдущие веса для проверки сходимости
@@ -62,85 +116,152 @@ class RobustEstimator:
             # Решение взвешенной задачи МНК
             AT = A.T
             N = AT @ P @ A
-            U = AT @ P @ l
+            U = AT @ P @ L
             
             try:
                 from sksparse.cholmod import cholesky
                 factor = cholesky(N.tocsc())
                 dx = factor(U)
             except Exception as e:
-                warnings.warn(f"Используем плотное решение: {e}")
+                warnings.warn(f"Используем плотное решение на итерации {iteration}: {e}")
                 N_dense = N.toarray()
-                U_dense = U
-                dx = np.linalg.solve(N_dense, U_dense)
+                dx = np.linalg.solve(N_dense, U)
             
             # Вычисление остатков
-            residuals = A @ dx - l
+            residuals = A @ dx - L
             
-            # Обновление весов в зависимости от метода
+            # Вычисление СКО единицы веса
+            r = n - dx.shape[0]  # степень свободы
+            sigma0 = np.sqrt((residuals.T @ P @ residuals) / r) if r > 0 else 0.0
+            
+            # Сохранение истории
+            history['sigma0'].append(sigma0)
+            history['max_correction'].append(np.max(np.abs(dx)))
+            history['weights'].append(W.copy())
+            
+            # Проверка сходимости по максимальной поправке
+            if iteration > 0 and np.max(np.abs(dx)) < tolerance:
+                break
+            
+            # Вычисление стандартизованных остатков
+            # q_vv = diag(P⁻¹ - A · N⁻¹ · A^T)
+            try:
+                factor = cholesky(N.tocsc())
+                N_inv = factor.inv()
+            except:
+                N_inv = np.linalg.pinv(N.toarray())
+                N_inv = sparse.csr_matrix(N_inv)
+            
+            # Упрощённый расчёт стандартизованных остатков
+            standardized_residuals = residuals / sigma0 if sigma0 > 0 else residuals
+            
+            # Обновление весов в зависимости от выбранного метода
             if self.method == 'huber':
-                W = self.huber_weights(residuals)
+                W = self.huber_weights(standardized_residuals, c=1.345)
             elif self.method == 'tukey':
-                W = self.tukey_weights(residuals)
+                W = self.tukey_weights(standardized_residuals, c=4.685)
             else:
                 raise ValueError(f"Неизвестный метод: {self.method}")
-                
+            
+            # Формирование новой весовой матрицы
             P = sparse.diags(W)
             
-            # Проверка сходимости
+            # Проверка сходимости по весам
             weight_change = np.max(np.abs(W - prev_weights))
             if weight_change < tolerance:
                 break
-                
-        return dx, residuals, W
+        
+        self.iterations = iteration + 1
+        self.weights = W
+        
+        # Финальные вычисления
+        final_residuals = A @ dx - L
+        final_sigma0 = np.sqrt((final_residuals.T @ P @ final_residuals) / r) if r > 0 else 0.0
+        
+        return {
+            'coordinate_corrections': dx,
+            'residuals': final_residuals,
+            'sigma0': final_sigma0,
+            'weights': W,
+            'iterations': self.iterations,
+            'history': history,
+            'method': self.method
+        }
     
-    def l1_minimization(self, A: sparse.csr_matrix, l: np.ndarray) -> np.ndarray:
+    def l1_minimization(self, A: sparse.csr_matrix, 
+                       L: np.ndarray,
+                       P: sparse.csr_matrix) -> Dict[str, Any]:
         """
         L1-минимизация для обнаружения грубых ошибок
-        Решает задачу min ||Ax - l||_1
+        
+        Формулировка задачи:
+        минимизировать ||W · v||_1
+        при условии A^T · P · v = 0
+        
+        Реализуется через преобразование в задачу линейного программирования.
+        
+        Параметры:
+        - A: матрица коэффициентов
+        - L: вектор свободных членов
+        - P: весовая матрица
+        
+        Возвращает:
+        - Словарь с результатами
         """
         try:
             from scipy.optimize import linprog
         except ImportError:
-            raise ImportError("Для L1-минимизации требуется scipy.optimize.linprog")
-            
-        n, m = A.shape
+            raise ImportError("Для L1-минимизации требуется scipy.optimize")
         
-        # Формулировка задачи линейного программирования
-        # min sum(t_i), при |Ax - l| <= t
-        # Это эквивалентно: min c^T * [x, t], при:
-        # [A, -I; -A, -I] * [x; t] <= [l; -l]
+        n = A.shape[0]  # число измерений
+        u = A.shape[1]  # число неизвестных
         
-        # Вектор целевой функции
-        c = np.concatenate([np.zeros(m), np.ones(n)])
+        # Преобразование в задачу линейного программирования
+        # Минимизируем: 1^T · t
+        # При условиях:
+        # -t ≤ W · v ≤ t
+        # A^T · P · v = 0
         
-        # Ограничения
-        A_ub = sparse.vstack([
-            sparse.hstack([A, -sparse.eye(n)]),
-            sparse.hstack([-A, -sparse.eye(n)])
-        ]).toarray()
+        W = sparse.diags(np.sqrt(P.diagonal())) if sparse.issparse(P) else np.sqrt(np.diag(P))
         
-        b_ub = np.concatenate([l, -l])
+        # Матрица ограничений неравенств
+        A_ub = np.vstack([
+            np.hstack([W.toarray() if sparse.issparse(W) else W, -np.eye(n)]),
+            np.hstack([-W.toarray() if sparse.issparse(W) else W, -np.eye(n)])
+        ])
+        
+        # Вектор правой части ограничений неравенств
+        b_ub = np.hstack([np.zeros(n), np.zeros(n)])
+        
+        # Матрица ограничений равенств
+        A_eq = np.hstack([A.T @ P.toarray() if sparse.issparse(P) else A.T @ P, np.zeros((u, n))])
+        
+        # Вектор правой части ограничений равенств
+        b_eq = np.zeros(u)
+        
+        # Целевая функция
+        c = np.hstack([np.zeros(n), np.ones(n)])
         
         # Решение задачи линейного программирования
-        result = linprog(c, A_ub=A_ub, b_ub=b_ub, method='highs')
+        result = linprog(c, A_ub=A_ub, b_ub=b_ub, A_eq=A_eq, b_eq=b_eq, method='highs')
         
         if result.success:
-            x_solution = result.x[:m]
-            return x_solution
+            v = result.x[:n]
+            dx = np.linalg.lstsq(A.toarray() if sparse.issparse(A) else A, L + v, rcond=None)[0]
+            
+            # Вычисление СКО единицы веса
+            r = n - u
+            sigma0 = np.sqrt((v.T @ P @ v) / r) if r > 0 else 0.0
+            
+            return {
+                'coordinate_corrections': dx,
+                'residuals': v,
+                'sigma0': sigma0,
+                'method': 'l1_minimization',
+                'success': True
+            }
         else:
-            raise RuntimeError(f"L1-минимизация не сошлась: {result.message}")
-    
-    def estimate(self, A: sparse.csr_matrix, l: np.ndarray, 
-                 initial_weights: np.ndarray = None) -> tuple:
-        """
-        Выполнение робастного оценивания
-        """
-        if self.method == 'huber' or self.method == 'tukey':
-            return self.irls_adjustment(A, l, initial_weights)
-        elif self.method == 'l1':
-            dx = self.l1_minimization(A, l)
-            residuals = A @ dx - l
-            return dx, residuals, np.ones(len(residuals))
-        else:
-            raise ValueError(f"Неизвестный метод: {self.method}")
+            return {
+                'success': False,
+                'message': result.message
+            }

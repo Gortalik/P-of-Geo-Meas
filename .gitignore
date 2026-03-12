@@ -1,1 +1,47 @@
-Nothing should be ignored based on the provided file changes, as they only include source code files (.py) without any build artifacts, dependencies, or temporary files.
+```
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+.ENV
+.env
+.env.local
+.env.*
+.pytest_cache/
+.mypy_cache/
+.coverage
+coverage/
+htmlcov/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+.sconsign.dblite
+._*
+*~
+
+# Logs
+*.log
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+```

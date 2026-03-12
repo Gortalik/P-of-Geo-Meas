@@ -9,22 +9,12 @@ env/
 venv/
 .venv/
 .ENV
-.env
-.env.local
-.env.*
-.pytest_cache/
-.mypy_cache/
-.coverage
-coverage/
-htmlcov/
+.ENV.local
 
 # Build artifacts
 build/
 dist/
 *.egg-info/
-.sconsign.dblite
-._*
-*~
 
 # Logs
 *.log
@@ -38,10 +28,19 @@ dist/
 ehthumbs.db
 Thumbs.db
 
-# Editor files
+# Editor
 .vscode/
 .idea/
 *.swp
 *.swo
 *.tmp
+
+# Coverage reports
+coverage/
+htmlcov/
+.coverage
+
+# Testing
+.pytest_cache/
+.mypy_cache/
 ```

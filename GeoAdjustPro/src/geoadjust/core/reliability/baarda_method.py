@@ -1,65 +1,76 @@
 import numpy as np
 from scipy import sparse
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Any
 import warnings
 
 
-class BaardaMethod:
-    """
-    Метод Баарда для анализа надёжности геодезических сетей
-    """
+class BaardaReliability:
+    """Анализ надёжности геодезической сети по теории В. Баарда"""
     
-    def __init__(self, A: sparse.csr_matrix, P: sparse.csr_matrix, sigma0: float = 1.0):
+    def __init__(self, A: sparse.csr_matrix, P: sparse.csr_matrix, 
+                 sigma0: float, residuals: np.ndarray):
         """
-        :param A: Матрица коэффициентов уравнений поправок
-        :param P: Весовая матрица
-        :param sigma0: Апостериорная СКО единицы веса
+        Инициализация анализа надёжности
+        
+        Параметры:
+        - A: матрица коэффициентов уравнений поправок
+        - P: весовая матрица измерений
+        - sigma0: СКО единицы веса
+        - residuals: вектор остатков
         """
         self.A = A
         self.P = P
         self.sigma0 = sigma0
+        self.residuals = residuals
         
-        # Размерности
         self.n = A.shape[0]  # число измерений
         self.u = A.shape[1]  # число неизвестных
+        self.r = self.n - self.u  # степень свободы
         
-        # Вычисляем необходимые матрицы
-        self.N_inv = None  # обратная нормальная матрица
-        self.Qxx = None    # ковариационная матрица параметров
-        self.Qvv = None    # ковариационная матрица остатков
-        self.compute_matrices()
-        
+        self.Qvv = None  # Ковариационная матрица остатков
+        self.Qxx = None  # Ковариационная матрица неизвестных
+        self.N = None  # Нормальная матриция
+    
     def compute_matrices(self):
-        """Вычисление основных матриц метода"""
-        # Нормальная матрица
-        N = self.A.T @ self.P @ self.A
+        """Вычисление ковариационных матриц"""
+        if self.N is None:
+            self.N = self.A.T @ self.P @ self.A
         
-        # Обращение нормальной матрицы
+        # Обратная нормальная матрица
         try:
             from sksparse.cholmod import cholesky
-            factor = cholesky(N.tocsc())
-            self.N_inv = factor.inv()
+            factor = cholesky(self.N.tocsc())
+            N_inv = factor.inv()
         except Exception as e:
-            warnings.warn(f"Используем псевдообратную матрицу вместо обычной: {e}")
-            self.N_inv = np.linalg.pinv(N.toarray())
-            self.N_inv = sparse.csr_matrix(self.N_inv)
+            warnings.warn(f"Используем псевдообратную матрицу: {e}")
+            N_inv = np.linalg.pinv(self.N.toarray())
+            N_inv = sparse.csr_matrix(N_inv)
         
-        # Ковариационная матрица параметров
-        self.Qxx = self.sigma0**2 * self.N_inv
+        # Ковариационная матрица неизвестных
+        self.Qxx = self.sigma0**2 * N_inv
         
-        # Матрица влияния
-        Qll = sparse.diags(1.0 / self.P.diagonal())  # Qll = P^(-1)
+        # Ковариационная матрица измерений
+        Qll = sparse.diags(1.0 / self.P.diagonal())
+        
+        # Ковариационная матрица остатков: Qvv = Qll - A · Qxx · A^T
         A_Qxx_AT = self.A @ self.Qxx @ self.A.T
         self.Qvv = Qll - A_Qxx_AT
-        
+    
     def calculate_reliability_numbers(self) -> np.ndarray:
         """
         Вычисление надёжностей (reliability numbers) измерений
-        r_ii = p_ii * q_vv_ii, где p_ii - вес измерения, q_vv_ii - диагональный элемент Qvv
+        
+        Формула: r_ii = p_ii · q_vv_ii
+        где:
+        - p_ii - вес измерения
+        - q_vv_ii - диагональный элемент Qvv
+        
+        Возвращает:
+        - r_ii: массив надёжностей для каждого измерения
         """
         if self.Qvv is None:
             self.compute_matrices()
-            
+        
         # Диагональные элементы ковариационной матрицы остатков
         q_vv_diag = self.Qvv.diagonal()
         
@@ -73,23 +84,34 @@ class BaardaMethod:
     
     def calculate_internal_reliability(self) -> np.ndarray:
         """
-        Вычисление внутренней надёжности (влияние грубой ошибки в измерении на себя)
-        rho_ii = r_ii / (1 + r_ii)
+        Вычисление внутренней надёжности
+        
+        Внутренняя надёжность показывает влияние грубой ошибки в измерении на себя.
+        
+        Формула: ρ_ii = r_ii / (1 + r_ii)
+        
+        Возвращает:
+        - rho_ii: массив внутренних надёжностей (0 ≤ ρ_ii ≤ 1)
         """
         r_ii = self.calculate_reliability_numbers()
         rho_ii = r_ii / (1 + r_ii)
-        
         return rho_ii
     
     def calculate_external_reliability(self) -> np.ndarray:
         """
-        Вычисление внешней надёжности (влияние грубой ошибки в измерении на параметры)
-        Delta_x = Qxx * A.T * P * e_i
+        Вычисление внешней надёжности
+        
+        Внешняя надёжность показывает влияние грубой ошибки в измерении на параметры.
+        
+        Формула: Δx = Qxx · A^T · P · e_i
         где e_i - единичный вектор для i-го измерения
+        
+        Возвращает:
+        - external_reliability: матрица влияния (n × u)
         """
         if self.Qxx is None:
             self.compute_matrices()
-            
+        
         external_reliability = np.zeros((self.n, self.u))
         
         for i in range(self.n):
@@ -99,27 +121,84 @@ class BaardaMethod:
             
             # Влияние ошибки в i-ом измерении на параметры
             delta_x = self.Qxx @ self.A.T @ self.P @ e_i
-            external_reliability[i, :] = delta_x
-            
+            external_reliability[i] = delta_x
+        
         return external_reliability
     
-    def calculate_bounding_error(self) -> np.ndarray:
+    def detect_blunders(self, threshold: float = 3.0) -> Dict[str, Any]:
         """
-        Вычисление граничной ошибки (предел, до которого можно обнаружить грубую ошибку)
-        tau_i = sqrt(r_ii) * sigma0
-        """
-        r_ii = self.calculate_reliability_numbers()
-        tau_i = np.sqrt(r_ii) * self.sigma0
+        Обнаружение грубых ошибок по критерию Баарда
         
-        return tau_i
-    
-    def analyze_reliability(self) -> Dict[str, np.ndarray]:
+        Критерий: |r_i| > k · σ0 · √q_vv_i
+        где:
+        - r_i - остаток измерения
+        - k - порог (обычно 3.0 для 99.7% доверительной вероятности)
+        - σ0 - СКО единицы веса
+        - q_vv_i - диагональный элемент Qvv
+        
+        Параметры:
+        - threshold: порог обнаружения (по умолчанию 3.0)
+        
+        Возвращает:
+        - Словарь с результатами обнаружения
         """
-        Полный анализ надёжности
-        """
+        if self.Qvv is None:
+            self.compute_matrices()
+        
+        # Стандартизованные остатки
+        standardized_residuals = self.residuals / (self.sigma0 * np.sqrt(self.Qvv.diagonal()))
+        
+        # Обнаружение грубых ошибок
+        blunder_indices = np.where(np.abs(standardized_residuals) > threshold)[0]
+        
+        blunders = []
+        for idx in blunder_indices:
+            blunders.append({
+                'index': idx,
+                'residual': self.residuals[idx],
+                'standardized_residual': standardized_residuals[idx],
+                'q_vv': self.Qvv[idx, idx],
+                'severity': 'critical' if abs(standardized_residuals[idx]) > 4.0 else 'warning'
+            })
+        
         return {
-            'reliability_numbers': self.calculate_reliability_numbers(),
-            'internal_reliability': self.calculate_internal_reliability(),
-            'external_reliability': self.calculate_external_reliability(),
-            'bounding_error': self.calculate_bounding_error()
+            'num_blunders': len(blunders),
+            'blunders': blunders,
+            'threshold': threshold,
+            'standardized_residuals': standardized_residuals
         }
+    
+    def analyze(self) -> Dict[str, Any]:
+        """Полный анализ надёжности сети"""
+        # Вычисление матриц
+        self.compute_matrices()
+        
+        # Внутренняя надёжность
+        internal_reliability = self.calculate_internal_reliability()
+        
+        # Внешняя надёжность
+        external_reliability = self.calculate_external_reliability()
+        
+        # Обнаружение грубых ошибок
+        blunder_detection = self.detect_blunders(threshold=3.0)
+        
+        # Статистика
+        avg_internal_reliability = np.mean(internal_reliability)
+        max_internal_reliability = np.max(internal_reliability)
+        min_internal_reliability = np.min(internal_reliability)
+        
+        return {
+            'internal_reliability': internal_reliability,
+            'external_reliability': external_reliability,
+            'avg_internal_reliability': avg_internal_reliability,
+            'max_internal_reliability': max_internal_reliability,
+            'min_internal_reliability': min_internal_reliability,
+            'blunder_detection': blunder_detection,
+            'num_measurements': self.n,
+            'num_unknowns': self.u,
+            'redundancy': self.r
+        }
+
+
+# Класс-обёртка для обратной совместимости
+BaardaMethod = BaardaReliability

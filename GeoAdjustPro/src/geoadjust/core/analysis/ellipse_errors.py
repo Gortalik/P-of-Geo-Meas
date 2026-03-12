@@ -125,12 +125,26 @@ class ErrorEllipseAnalyzer:
     def get_ellipse_for_point(self, point_index: int) -> Tuple[float, float, float]:
         """
         Получение параметров эллипса ошибок для конкретной точки
+        
+        Параметры:
+        - point_index: индекс точки (0-based)
+        
+        Возвращает:
+        - (a, b, alpha): большая полуось, малая полуось, азимут большой оси
+        
+        Исключения:
+        - IndexError: если индекс точки вне диапазона
         """
-        if point_index >= self.n_points:
+        if point_index >= self.n_points or point_index < 0:
             raise IndexError(f"Индекс точки {point_index} вне диапазона (0-{self.n_points-1})")
             
         idx_x = 2 * point_index
         idx_y = 2 * point_index + 1
+        
+        # Проверка границ матрицы
+        if idx_y >= self.covariance_matrix.shape[0]:
+            raise IndexError(f"Индекс {idx_y} выходит за границы ковариационной матрицы "
+                           f"(размерность: {self.covariance_matrix.shape})")
         
         q_xx = self.covariance_matrix[idx_x, idx_x]
         q_yy = self.covariance_matrix[idx_y, idx_y]

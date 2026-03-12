@@ -2,6 +2,9 @@ import numpy as np
 from scipy import sparse
 from typing import Dict, List, Tuple, Any
 import warnings
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class BaardaReliability:
@@ -42,7 +45,7 @@ class BaardaReliability:
             factor = cholesky(self.N.tocsc())
             N_inv = factor.inv()
         except Exception as e:
-            warnings.warn(f"Используем псевдообратную матрицу: {e}")
+            logger.warning(f"Используем псевдообратную матрицу: {e}", exc_info=True)
             N_inv = np.linalg.pinv(self.N.toarray())
             N_inv = sparse.csr_matrix(N_inv)
         
@@ -76,6 +79,20 @@ class BaardaReliability:
         
         # Веса измерений
         p_diag = self.P.diagonal()
+        
+        # Защита от отрицательных значений из-за ошибок округления
+        negative_indices = np.where(q_vv_diag < 0)[0]
+        if len(negative_indices) > 0:
+            # Исправление незначительных отрицательных значений
+            small_negative = np.abs(q_vv_diag[negative_indices]) < 1e-10
+            if np.all(small_negative):
+                q_vv_diag[negative_indices] = 0.0
+                logger.warning(f"Исправлены {len(negative_indices)} незначительных отрицательных "
+                              f"значений в диагонали Qvv")
+            else:
+                logger.error(f"Обнаружены значительные отрицательные значения в диагонали Qvv: "
+                            f"{q_vv_diag[negative_indices]}")
+                raise ValueError("Матрица ковариаций остатков содержит отрицательные дисперсии")
         
         # Надёжности
         r_ii = p_diag * q_vv_diag
@@ -145,27 +162,51 @@ class BaardaReliability:
         if self.Qvv is None:
             self.compute_matrices()
         
-        # Стандартизованные остатки
-        standardized_residuals = self.residuals / (self.sigma0 * np.sqrt(self.Qvv.diagonal()))
+        # Проверка на нулевое СКО
+        if self.sigma0 is None or self.sigma0 == 0:
+            raise ValueError("СКО единицы веса не вычислено или равно нулю")
         
-        # Обнаружение грубых ошибок
-        blunder_indices = np.where(np.abs(standardized_residuals) > threshold)[0]
+        if self.sigma0 < 1e-10:
+            logger.warning(f"Очень малое СКО единицы веса: {self.sigma0}. "
+                          "Возможны проблемы с масштабированием весов.")
+        
+        # Вычисление стандартизованных остатков с защитой от деления на ноль
+        q_vv_diag = self.Qvv.diagonal()
+        
+        # Защита от отрицательных и нулевых значений
+        valid_mask = (q_vv_diag > 1e-15) & np.isfinite(q_vv_diag)
+        
+        standardized_residuals = np.zeros_like(self.residuals)
+        standardized_residuals[valid_mask] = (
+            self.residuals[valid_mask] / 
+            (self.sigma0 * np.sqrt(q_vv_diag[valid_mask]))
+        )
+        
+        # Отметка недействительных остатков
+        standardized_residuals[~valid_mask] = np.nan
+        
+        # Обнаружение грубых ошибок (только для действительных остатков)
+        blunder_indices = np.where(
+            valid_mask & (np.abs(standardized_residuals) > threshold)
+        )[0]
         
         blunders = []
         for idx in blunder_indices:
+            severity = 'critical' if abs(standardized_residuals[idx]) > 5.0 else 'warning'
             blunders.append({
                 'index': idx,
                 'residual': self.residuals[idx],
                 'standardized_residual': standardized_residuals[idx],
-                'q_vv': self.Qvv[idx, idx],
-                'severity': 'critical' if abs(standardized_residuals[idx]) > 4.0 else 'warning'
+                'q_vv': q_vv_diag[idx],
+                'severity': severity
             })
         
         return {
             'num_blunders': len(blunders),
             'blunders': blunders,
             'threshold': threshold,
-            'standardized_residuals': standardized_residuals
+            'standardized_residuals': standardized_residuals,
+            'num_invalid': np.sum(~valid_mask)
         }
     
     def analyze(self) -> Dict[str, Any]:

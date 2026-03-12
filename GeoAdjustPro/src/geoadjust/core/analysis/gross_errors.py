@@ -2,6 +2,9 @@ import numpy as np
 from scipy import sparse
 from typing import List, NamedTuple, Literal
 import warnings
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class GrossErrorCandidate(NamedTuple):
@@ -75,11 +78,22 @@ class GrossErrorAnalyzer:
         """
         candidates = []
         
+        # Проверка на нулевое СКО
+        if self.sigma0 is None:
+            raise ValueError("СКО единицы веса не вычислено")
+        
+        if self.sigma0 == 0:
+            logger.error("СКО единицы веса равно нулю. Анализ стандартизованных остатков невозможен.")
+            return []
+        
+        if self.sigma0 < 1e-10:
+            logger.warning(f"Очень малое СКО единицы веса: {self.sigma0}")
+        
         # Диагональные элементы Qvv
         q_vv_diag = self.Qvv.diagonal()
         
         for i, (residual, q_vv_ii) in enumerate(zip(self.V, q_vv_diag)):
-            if q_vv_ii <= 0:
+            if q_vv_ii <= 1e-15:  # Защита от деления на ноль
                 continue
                 
             std_residual = residual / (self.sigma0 * np.sqrt(q_vv_ii))

@@ -3,6 +3,9 @@ from scipy import sparse
 from sksparse.cholmod import cholesky
 from typing import Tuple, Dict, Any, Optional
 import warnings
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class AdjustmentEngine:
@@ -19,6 +22,32 @@ class AdjustmentEngine:
         self.sigma0 = None  # СКО единицы веса
         self.covariance_matrix = None  # Ковариационная матрица неизвестных
     
+    def _is_positive_definite(self, matrix: sparse.csr_matrix) -> bool:
+        """
+        Проверка положительной определённости матрицы
+        
+        Параметры:
+        - matrix: разреженная матрица
+        
+        Возвращает:
+        - True если матрица положительно определена
+        """
+        # Проверка диагональных элементов
+        diag = matrix.diagonal()
+        if np.any(diag <= 0):
+            return False
+        
+        # Проверка определителя (для небольших матриц)
+        if matrix.shape[0] < 100:
+            try:
+                det = np.linalg.det(matrix.toarray())
+                if det <= 1e-10:
+                    return False
+            except Exception:
+                pass
+        
+        return True
+    
     def setup_equations(self, A: sparse.csr_matrix, 
                        L: np.ndarray, 
                        P: sparse.csr_matrix) -> None:
@@ -32,10 +61,30 @@ class AdjustmentEngine:
         
         Уравнение поправок: V = A · ΔX - L
         """
+        # Валидация входных данных
         if not sparse.issparse(A):
             A = sparse.csr_matrix(A)
         if not sparse.issparse(P):
             P = sparse.diags(P) if len(P.shape) == 1 else sparse.csr_matrix(P)
+        
+        # Проверка размерностей
+        n, u = A.shape  # n - число измерений, u - число неизвестных
+        l_len = len(L)
+        
+        # Проверка совместимости вектора измерений
+        if l_len != n:
+            raise ValueError(f"Несовместимые размерности: матрица A имеет {n} строк, "
+                           f"а вектор измерений имеет длину {l_len}")
+        
+        # Проверка весовой матрицы
+        if P.shape != (n, n):
+            raise ValueError(f"Несовместимые размерности: весовая матрица P должна быть "
+                           f"{n}×{n}, а имеет размерность {P.shape}")
+        
+        # Проверка весовой матрицы на положительную определённость
+        if not self._is_positive_definite(P):
+            logger.warning("Весовая матрица не является положительно определённой. "
+                          "Это может привести к некорректным результатам.")
         
         self.adjustment_matrix = A
         self.observations_vector = L
@@ -58,15 +107,21 @@ class AdjustmentEngine:
         # Вектор правой части: U = A^T · P · L
         U = self.adjustment_matrix.T @ self.weight_matrix @ self.observations_vector
         
+        # Проверка положительной определённости нормальной матрицы
+        if not self._is_positive_definite(self.normal_matrix):
+            logger.warning("Нормальная матрица не является положительно определённой. "
+                          "Проверьте веса измерений и топологию сети.")
+        
         # Решение через разложение Холецкого (для разреженных матриц)
         try:
             factor = cholesky(self.normal_matrix.tocsc())
             self.solution_vector = factor(U)
         except Exception as e:
-            warnings.warn(f"Используем плотное решение: {e}")
-            # Резервный метод для небольших сетей
+            logger.warning(f"Разложение Холецкого не удалось: {e}. Используем псевдообратную матрицу.",
+                          exc_info=True)
+            # Резервный метод для небольших сетей или вырожденных матриц
             N_dense = self.normal_matrix.toarray()
-            self.solution_vector = np.linalg.solve(N_dense, U)
+            self.solution_vector = np.linalg.pinv(N_dense) @ U
         
         return self.solution_vector
     
@@ -112,6 +167,21 @@ class AdjustmentEngine:
         
         # СКО единицы веса
         numerator = self.residuals.T @ self.weight_matrix @ self.residuals
+        
+        # Защита от отрицательных значений из-за ошибок округления
+        if isinstance(numerator, np.ndarray):
+            numerator = float(numerator.item())
+        
+        if numerator < 0:
+            if abs(numerator) < 1e-10:
+                # Пренебрежимо малое отрицательное значение - считаем нулём
+                numerator = 0.0
+                logger.warning("Числитель в формуле σ₀ отрицателен из-за ошибок округления. "
+                              "Принимаем равным нулю.")
+            else:
+                raise ValueError(f"Отрицательное значение числителя в формуле σ₀: {numerator}. "
+                               "Проверьте правильность формирования весовой матрицы.")
+        
         self.sigma0 = np.sqrt(numerator / r)
         
         return self.sigma0

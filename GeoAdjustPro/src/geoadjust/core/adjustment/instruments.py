@@ -41,16 +41,43 @@ class Instrument:
     def calculate_distance_sigma(self, distance_km: float, temperature: float = None, 
                                 pressure: float = None) -> float:
         """
-        Расчёт СКО линейного измерения
-        sigma = sqrt(a^2 + (b*D)^2)
+        Расчёт СКО линейного измерения с учётом атмосферных условий
+        
+        Формула: σ = √(a² + (b·D)²) · k_atm
+        где k_atm - поправочный коэффициент за атмосферные условия
+        
+        Параметры:
+        - distance_km: расстояние в километрах
+        - temperature: температура воздуха (°C)
+        - pressure: атмосферное давление (гПа)
+        
+        Возвращает:
+        - sigma: СКО линейного измерения в мм
         """
         if temperature is None:
             temperature = self.temperature_default
         if pressure is None:
             pressure = self.pressure_default
             
+        # Базовое СКО без учёта атмосферы
         sigma_squared = (self.distance_accuracy_a)**2 + \
                        (self.distance_accuracy_b * distance_km)**2
+        
+        # Поправка за атмосферные условия (упрощённая модель)
+        # Стандартные условия
+        t0 = self.temperature_default
+        p0 = self.pressure_default
+        
+        # Отклонение от стандартных условий
+        delta_t = temperature - t0
+        delta_p = pressure - p0
+        
+        # Коэффициент поправки (эмпирическая формула)
+        # Увеличение СКО при отклонении от стандартных условий
+        k_atm = 1.0 + 0.001 * (abs(delta_t) / 10.0 + abs(delta_p) / 50.0)
+        
+        sigma_squared *= k_atm**2
+        
         return sigma_squared**0.5
     
     def calculate_leveling_sigma(self, num_stands: int) -> float:

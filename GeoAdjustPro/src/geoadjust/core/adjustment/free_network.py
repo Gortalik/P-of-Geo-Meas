@@ -2,6 +2,9 @@ import numpy as np
 from scipy import sparse
 from typing import Dict, Any, Optional, Literal
 import warnings
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class FreeNetworkAdjustment:
@@ -98,7 +101,7 @@ class FreeNetworkAdjustment:
             factor = cholesky(extended_matrix.tocsc())
             solution = factor(extended_rhs)
         except Exception as e:
-            warnings.warn(f"Используем плотное решение: {e}")
+            logger.warning(f"Используем плотное решение: {e}", exc_info=True)
             extended_dense = extended_matrix.toarray()
             solution = np.linalg.solve(extended_dense, extended_rhs)
         

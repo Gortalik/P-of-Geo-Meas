@@ -433,8 +433,16 @@ class SDRParser:
             'num_observations': len(self.observations),
             'num_points': len(self.points),
             'errors': self.errors,
-            'warnings': self.warnings
+            'warnings': self.warnings,
+            'success': len(self.errors) == 0
         }
+
+        if len(self.errors) > 0:
+            logger.error(f"Обнаружено {len(self.errors)} ошибок при парсинге")
+            if len(self.errors) > 10:
+                logger.error(f"Первые 10 ошибок:")
+                for error in self.errors[:10]:
+                    logger.error(f"  Строка {error.get('line', '?')}: {error.get('message', 'Неизвестная ошибка')}")
 
         logger.info(f"Парсинг завершён: {result['num_observations']} измерений, {result['num_points']} пунктов")
 

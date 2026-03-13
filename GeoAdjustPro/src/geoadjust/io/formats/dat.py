@@ -366,8 +366,16 @@ class DATParser:
             'errors': self.errors,
             'warnings': self.warnings,
             'header_info': self.header_info,
-            'instrument_info': self.instrument_info
+            'instrument_info': self.instrument_info,
+            'success': len(self.errors) == 0
         }
+
+        if len(self.errors) > 0:
+            logger.error(f"Обнаружено {len(self.errors)} ошибок при парсинге")
+            if len(self.errors) > 10:
+                logger.error(f"Первые 10 ошибок:")
+                for error in self.errors[:10]:
+                    logger.error(f"  Строка {error.get('line', '?')}: {error.get('message', 'Неизвестная ошибка')}")
 
         logger.info(f"Парсинг завершён: {result['num_observations']} измерений, {result['num_points']} пунктов")
 

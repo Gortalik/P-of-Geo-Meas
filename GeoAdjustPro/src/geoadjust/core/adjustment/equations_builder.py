@@ -139,9 +139,19 @@ class EquationsBuilder:
                             L_vector.append(sub_ell)
                             obs_index += 1
                     continue
-                elif obs.obs_type in ['azimuth', 'vertical_angle', 'zenith_angle']:
-                    # Обработка других угловых измерений
+                elif obs.obs_type == 'azimuth':
+                    # Азимут обрабатывается как направление
                     indices, coeffs, ell = self._build_angle_equation(
+                        obs, points, unknown_indices, num_unknowns_per_point
+                    )
+                elif obs.obs_type == 'vertical_angle':
+                    # Вертикальный угол (зенитное расстояние)
+                    indices, coeffs, ell = self._build_zenith_angle_equation(
+                        obs, points, unknown_indices, num_unknowns_per_point
+                    )
+                elif obs.obs_type == 'zenith_angle':
+                    # Зенитный угол
+                    indices, coeffs, ell = self._build_zenith_angle_equation(
                         obs, points, unknown_indices, num_unknowns_per_point
                     )
                 else:
@@ -497,3 +507,104 @@ class EquationsBuilder:
         return self._build_direction_equation(
             obs, points, unknown_indices, num_unknowns_per_point
         )
+    
+    def _build_zenith_angle_equation(
+        self,
+        obs: Observation,
+        points: Dict[str, NetworkPoint],
+        unknown_indices: Dict[str, int],
+        num_unknowns_per_point: int
+    ) -> Tuple[List[int], List[float], float]:
+        """
+        Формирование уравнения поправок для зенитного угла.
+        
+        Уравнение поправок для зенитного угла аналогично направлению,
+        но с учётом вертикальной плоскости.
+        """
+        from_point = points[obs.from_point]
+        to_point = points[obs.to_point]
+        
+        # Приближенные координаты
+        x_i, y_i = from_point.x, from_point.y
+        x_j, y_j = to_point.x, to_point.y
+        
+        # Разности координат
+        dx = x_j - x_i
+        dy = y_j - y_i
+        
+        # Горизонтальное проложение
+        S_h = np.sqrt(dx**2 + dy**2)
+        
+        if S_h < 1e-6:
+            self.logger.warning(f"Нулевое горизонтальное расстояние между {obs.from_point} и {obs.to_point}")
+            S_h = 1e-6
+        
+        # Вертикальное превышение (если есть высоты)
+        dh = 0.0
+        if hasattr(from_point, 'h') and hasattr(to_point, 'h'):
+            if from_point.h is not None and to_point.h is not None:
+                dh = to_point.h - from_point.h
+        
+        # Наклонное расстояние
+        S = np.sqrt(S_h**2 + dh**2)
+        
+        # Вычисленное зенитное расстояние из приближённых координат
+        if S > 1e-6:
+            computed_zenith = np.arctan2(S_h, dh)
+            if computed_zenith < 0:
+                computed_zenith += np.pi
+        else:
+            computed_zenith = np.pi / 2
+        
+        # Измеренное зенитное расстояние (в радианах)
+        measured_zenith = np.deg2rad(obs.value)
+        
+        # Свободный член ℓ = Z_изм - Z_выч
+        ell = measured_zenith - computed_zenith
+        
+        # Приведение разности к диапазону [-π, π]
+        while ell > np.pi:
+            ell -= 2 * np.pi
+        while ell < -np.pi:
+            ell += 2 * np.pi
+        
+        # Коэффициенты уравнения поправок
+        # ∂v/∂x_i = -cos α · cos Z / S
+        # ∂v/∂y_i = -sin α · cos Z / S
+        # ∂v/∂z_i = sin Z / S
+        # ∂v/∂x_j = cos α · cos Z / S
+        # ∂v/∂y_j = sin α · cos Z / S
+        # ∂v/∂z_j = -sin Z / S
+        
+        alpha = np.arctan2(dy, dx)
+        zenith = computed_zenith
+        
+        a_xi = -np.cos(alpha) * np.cos(zenith) / S
+        a_yi = -np.sin(alpha) * np.cos(zenith) / S
+        a_xj = np.cos(alpha) * np.cos(zenith) / S
+        a_yj = np.sin(alpha) * np.cos(zenith) / S
+        
+        indices = []
+        coeffs = []
+        
+        # Станция (i)
+        if obs.from_point in unknown_indices:
+            idx_base = unknown_indices[obs.from_point]
+            if num_unknowns_per_point >= 2:
+                indices.extend([idx_base, idx_base + 1])
+                coeffs.extend([a_xi, a_yi])
+            if num_unknowns_per_point == 3:
+                indices.append(idx_base + 2)
+                coeffs.append(np.sin(zenith) / S)
+        
+        # Целевая точка (j)
+        if obs.to_point in unknown_indices:
+            idx_base = unknown_indices[obs.to_point]
+            if num_unknowns_per_point >= 2:
+                indices.extend([idx_base, idx_base + 1])
+                coeffs.extend([a_xj, a_yj])
+            if num_unknowns_per_point == 3:
+                indices.append(idx_base + 2)
+                coeffs.append(-np.sin(zenith) / S)
+        
+        return indices, coeffs, ell

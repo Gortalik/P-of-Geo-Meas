@@ -95,6 +95,15 @@ class FreeNetworkAdjustment:
         top_part = A.T @ L
         extended_rhs = np.concatenate([top_part, w])
 
+        # Проверка ранга расширенной матрицы
+        try:
+            rank = np.linalg.matrix_rank(extended_matrix.toarray())
+            if rank < extended_matrix.shape[0]:
+                logger.warning(f"Ранг расширенной матрицы ({rank}) меньше размерности ({extended_matrix.shape[0]})")
+                logger.warning("Возможно, сеть вырождена или имеет недостаточное число измерений")
+        except Exception as e:
+            logger.warning(f"Не удалось проверить ранг матрицы: {e}")
+
         # Решение расширенной системы
         try:
             from sksparse.cholmod import cholesky
@@ -103,7 +112,11 @@ class FreeNetworkAdjustment:
         except Exception as e:
             logger.warning(f"Используем плотное решение: {e}", exc_info=True)
             extended_dense = extended_matrix.toarray()
-            solution = np.linalg.solve(extended_dense, extended_rhs)
+            try:
+                solution = np.linalg.solve(extended_dense, extended_rhs)
+            except np.linalg.LinAlgError as e:
+                logger.error(f"Ошибка при решении системы: {e}")
+                raise
 
         # Извлечение решений
         dx = solution[:u]

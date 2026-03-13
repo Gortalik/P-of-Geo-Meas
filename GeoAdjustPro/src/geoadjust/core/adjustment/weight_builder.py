@@ -319,6 +319,53 @@ class WeightBuilder:
         
         return sigma
     
+    def build_gnss_weight_matrix(self, obs: Observation) -> sparse.csr_matrix:
+        """
+        Построение весовой матрицы для вектора ГНСС с учётом корреляций.
+        
+        Весовая матрица = обратная к ковариационной матрице.
+        Для вектора ГНСС это матрица 3×3.
+        
+        Параметры:
+        -----------
+        obs : Observation
+            Измерение вектора ГНСС
+        
+        Возвращает:
+        ------------
+        P : sparse.csr_matrix
+            Весовая матрица 3×3
+        """
+        # Получение ковариационной матрицы из наблюдения
+        cov_matrix = getattr(obs, 'covariance_matrix', None)
+        
+        if cov_matrix is None:
+            # Если ковариационная матрица не задана, используем диагональную
+            sigma_x = getattr(obs, 'sigma_x', 0.01)
+            sigma_y = getattr(obs, 'sigma_y', 0.01)
+            sigma_z = getattr(obs, 'sigma_z', 0.01)
+            
+            cov_matrix = np.array([
+                [sigma_x**2, 0.0, 0.0],
+                [0.0, sigma_y**2, 0.0],
+                [0.0, 0.0, sigma_z**2]
+            ])
+        
+        try:
+            cov_matrix = np.array(cov_matrix)
+            # Обратная ковариационная матрица = весовая матрица
+            P = np.linalg.inv(cov_matrix)
+            return sparse.csr_matrix(P)
+        except Exception as e:
+            self.logger.warning(f"Ошибка при инвертировании ковариационной матрицы ГНСС: {e}")
+            # Возврат диагональной матрицы с обратными дисперсиями
+            sigma_x = getattr(obs, 'sigma_x', 0.01)
+            sigma_y = getattr(obs, 'sigma_y', 0.01)
+            sigma_z = getattr(obs, 'sigma_z', 0.01)
+            
+            P = sparse.diags([1.0/sigma_x**2, 1.0/sigma_y**2, 1.0/sigma_z**2])
+            return sparse.csr_matrix(P)
+    
     def _calculate_gnss_sigma(
         self,
         instrument: Instrument,
@@ -336,13 +383,18 @@ class WeightBuilder:
         
         if cov_matrix is not None:
             try:
-                import numpy as np
                 cov_matrix = np.array(cov_matrix)
-                # Использование полной ковариационной матрицы
-                # След матрицы (сумма дисперсий по диагонали)
-                trace = np.trace(cov_matrix)
-                # Средняя СКО с учётом корреляций
-                sigma = np.sqrt(trace / 3.0)
+                # Проверка положительной определённости
+                eigenvalues = np.linalg.eigvalsh(cov_matrix)
+                if np.all(eigenvalues > 0):
+                    # Использование полной ковариационной матрицы
+                    # След матрицы (сумма дисперсий по диагонали)
+                    trace = np.trace(cov_matrix)
+                    # Средняя СКО с учётом корреляций
+                    sigma = np.sqrt(trace / 3.0)
+                else:
+                    self.logger.warning(f"Ковариационная матрица ГНСС не является положительно определённой")
+                    cov_matrix = None
             except Exception as e:
                 self.logger.warning(f"Ошибка при использовании ковариационной матрицы ГНСС: {e}")
                 cov_matrix = None

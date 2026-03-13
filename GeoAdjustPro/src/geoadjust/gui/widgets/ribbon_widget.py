@@ -132,12 +132,10 @@ class RibbonWidget(QTabWidget):
         self.tabs[title] = tab
         return tab
     
-    def add_quick_access_toolbar(self) -> QToolBar:
+    def add_quick_access_toolbar(self):
         """Добавление панели быстрого доступа"""
         if self.quick_access_toolbar is None:
-            self.quick_access_toolbar = QToolBar("Quick Access", self.parent())
-            self.quick_access_toolbar.setMovable(False)
-            self.quick_access_toolbar.setIconSize(QSize(16, 16))
+            self.quick_access_toolbar = QuickAccessToolbar(self.parent())
             
             # Размещение над лентой
             if self.parent():

@@ -2,6 +2,9 @@ import numpy as np
 from scipy import sparse
 from typing import Literal, Tuple, Dict, Any
 import warnings
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class RobustEstimator:
@@ -146,14 +149,50 @@ class RobustEstimator:
             # Вычисление стандартизованных остатков
             # q_vv = diag(P⁻¹ - A · N⁻¹ · A^T)
             try:
-                factor = cholesky(N.tocsc())
+                from sksparse.cholmod import cholesky as chol_func
+                factor = chol_func(N.tocsc())
                 N_inv = factor.inv()
-            except:
+            except ImportError:
+                # sksparse не установлен, используем плотное решение
+                N_inv = np.linalg.pinv(N.toarray())
+                N_inv = sparse.csr_matrix(N_inv)
+            except Exception as e:
+                logger.warning(f"Используем псевдообратную матрицу для стандартизации: {e}")
                 N_inv = np.linalg.pinv(N.toarray())
                 N_inv = sparse.csr_matrix(N_inv)
 
-            # Упрощённый расчёт стандартизованных остатков
-            standardized_residuals = residuals / sigma0 if sigma0 > 0 else residuals
+            # Ковариационная матрица неизвестных
+            Qxx = (sigma0 ** 2) * N_inv if sigma0 > 0 else N_inv
+
+            # Ковариационная матрица измерений: Qll = P⁻¹
+            P_diag = P.diagonal()
+            valid_mask = P_diag > 1e-15
+            Qll_diag = np.zeros_like(P_diag)
+            Qll_diag[valid_mask] = 1.0 / P_diag[valid_mask]
+
+            # Ковариационная матрица остатков: Qvv = Qll - A · Qxx · A^T
+            # Для эффективности вычисляем только диагональные элементы
+            A_Qxx_AT_diag = np.zeros(n)
+            if sparse.issparse(Qxx):
+                Qxx_dense = Qxx.toarray()
+            else:
+                Qxx_dense = Qxx
+            
+            for i in range(min(n, 1000)):  # Ограничение для больших сетей
+                row_i = A.getrow(i).toarray().flatten()
+                A_Qxx_AT_diag[i] = row_i @ Qxx_dense @ row_i.T
+
+            q_vv_diag = Qll_diag - A_Qxx_AT_diag
+
+            # Стандартизованные остатки: r_i = v_i / (σ0 · √q_vv_i)
+            standardized_residuals = np.zeros_like(residuals)
+            valid_qvv_mask = q_vv_diag > 1e-15
+            if sigma0 > 0:
+                standardized_residuals[valid_qvv_mask] = (
+                    residuals[valid_qvv_mask] / (sigma0 * np.sqrt(q_vv_diag[valid_qvv_mask]))
+                )
+            else:
+                standardized_residuals = residuals / (np.sqrt(q_vv_diag) + 1e-15)
 
             # Обновление весов в зависимости от выбранного метода
             if self.method == 'huber':

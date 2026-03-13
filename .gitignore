@@ -1,39 +1,18 @@
-```gitignore
-# Python
-__pycache__/
+```
+# Python compiled files
 *.pyc
-*.pyo
-*.pyd
+__pycache__/
 
-# Build and distribution
-dist/
-build/
-*.egg-info/
+# Logs and temp files
+*.log
+*.tmp
 
-# Virtual environments
-venv/
-.venv/
+# Environment
 .env
 .env.local
 *.env.*
 
-# Editors and IDEs
+# Editors
 .vscode/
 .idea/
-*.swp
-*.swo
-
-# Logs and temporary files
-*.log
-*.tmp
-*.temp
-
-# Coverage reports
-.coverage
-coverage/
-htmlcov/
-
-# OS specific
-.DS_Store
-Thumbs.db
 ```

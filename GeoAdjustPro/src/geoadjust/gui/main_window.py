@@ -468,12 +468,47 @@ class MainWindow(QMainWindow):
     def _save_project(self):
         """Сохранение проекта"""
         logger.info("Сохранение проекта")
-        # TODO: Реализация сохранения проекта
+        
+        if self.current_project:
+            try:
+                from geoadjust.io.project.project_manager import ProjectManager
+                
+                project_manager = ProjectManager()
+                project_manager.save_project()
+                
+                self.statusBar().showMessage(f"Проект '{self.current_project.name}' сохранён", 3000)
+            except Exception as e:
+                QMessageBox.critical(self, "Ошибка", f"Не удалось сохранить проект:\n{str(e)}")
+                logger.error(f"Ошибка при сохранении проекта: {e}")
+        else:
+            QMessageBox.warning(self, "Предупреждение", "Нет открытого проекта")
     
     def _save_project_as(self):
         """Сохранение проекта в новое место"""
         logger.info("Сохранение проекта как...")
-        # TODO: Реализация сохранения как
+        
+        if self.current_project:
+            file_path = QFileDialog.getSaveFileName(
+                self,
+                "Сохранить проект как...",
+                "",
+                "GeoAdjust Project (*.gad)"
+            )[0]
+            
+            if file_path:
+                try:
+                    from pathlib import Path
+                    from geoadjust.io.project.project_manager import ProjectManager
+                    
+                    project_manager = ProjectManager()
+                    project_manager.save_project_as(Path(file_path))
+                    
+                    self.statusBar().showMessage(f"Проект сохранён в {file_path}", 3000)
+                except Exception as e:
+                    QMessageBox.critical(self, "Ошибка", f"Не удалось сохранить проект:\n{str(e)}")
+                    logger.error(f"Ошибка при сохранении проекта: {e}")
+        else:
+            QMessageBox.warning(self, "Предупреждение", "Нет открытого проекта")
     
     def _project_properties(self):
         """Открытие диалога свойств проекта"""
@@ -498,10 +533,131 @@ class MainWindow(QMainWindow):
     def _adjust_classic(self):
         """Классическое МНК уравнивание"""
         logger.info("Запуск классического МНК уравнивания")
+        
+        if not self.current_project:
+            QMessageBox.warning(self, "Предупреждение", "Нет открытого проекта")
+            return
+        
+        try:
+            self.mode_label.setText("Режим: уравнивание")
+            self.statusBar().showMessage("Выполняется уравнивание...", 0)
+            self.progress_bar.setVisible(True)
+            self.progress_bar.setRange(0, 0)  # Бесконечная прогресс-бар
+            
+            from geoadjust.core.adjustment.engine import AdjustmentEngine
+            from geoadjust.core.adjustment.equations_builder import EquationsBuilder
+            from geoadjust.core.adjustment.weight_builder import WeightBuilder
+            
+            # Получение данных из проекта
+            observations = self.current_project.get_observations()
+            control_points = self.current_project.get_points()
+            
+            if not observations:
+                QMessageBox.warning(self, "Предупреждение", "В проекте нет измерений")
+                self._reset_ui_state()
+                return
+            
+            # Создание матрицы коэффициентов
+            builder = EquationsBuilder()
+            A, L = builder.build_adjustment_matrix(observations, control_points)
+            
+            # Формирование весовой матрицы
+            instruments = self.current_project.settings.get('instruments', {})
+            weight_builder = WeightBuilder(instruments)
+            P = weight_builder.build_weight_matrix(observations)
+            
+            # Уравнивание
+            engine = AdjustmentEngine()
+            result = engine.adjust(A, L, P)
+            
+            # Сохранение результатов в проект
+            self.current_project.save_adjustment_result(result)
+            
+            # Обновление интерфейса
+            self._update_ui_with_results(result)
+            
+            sigma0 = result.get('sigma0', 0)
+            self.statusBar().showMessage(f"Уравнивание выполнено: μ₀ = {sigma0:.6f}", 5000)
+            self._reset_ui_state()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Ошибка при уравнивании:\n{str(e)}")
+            logger.error(f"Ошибка при уравнивании: {e}", exc_info=True)
+            self.statusBar().showMessage("Ошибка уравнивания", 3000)
+            self._reset_ui_state()
     
     def _adjust_robust(self):
         """Робастное уравнивание"""
         logger.info("Запуск робастного уравнивания")
+        
+        if not self.current_project:
+            QMessageBox.warning(self, "Предупреждение", "Нет открытого проекта")
+            return
+        
+        try:
+            self.mode_label.setText("Режим: робастное уравнивание")
+            self.statusBar().showMessage("Выполняется робастное уравнивание...", 0)
+            self.progress_bar.setVisible(True)
+            self.progress_bar.setRange(0, 0)
+            
+            from geoadjust.core.adjustment.robust_methods import RobustAdjustment
+            
+            # Получение данных из проекта
+            observations = self.current_project.get_observations()
+            control_points = self.current_project.get_points()
+            
+            if not observations:
+                QMessageBox.warning(self, "Предупреждение", "В проекте нет измерений")
+                self._reset_ui_state()
+                return
+            
+            # Робастное уравнивание
+            robust = RobustAdjustment()
+            result = robust.adjust(observations, control_points)
+            
+            # Сохранение результатов в проект
+            self.current_project.save_adjustment_result(result)
+            
+            # Обновление интерфейса
+            self._update_ui_with_results(result)
+            
+            sigma0 = result.get('sigma0', 0)
+            self.statusBar().showMessage(f"Робастное уравнивание выполнено: μ₀ = {sigma0:.6f}", 5000)
+            self._reset_ui_state()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Ошибка при робастном уравнивании:\n{str(e)}")
+            logger.error(f"Ошибка при робастном уравнивании: {e}", exc_info=True)
+            self.statusBar().showMessage("Ошибка уравнивания", 3000)
+            self._reset_ui_state()
+    
+    def _reset_ui_state(self):
+        """Сброс UI в исходное состояние"""
+        self.mode_label.setText("Режим: ожидание")
+        self.progress_bar.setVisible(False)
+        self.progress_bar.setValue(0)
+    
+    def _update_ui_with_results(self, result: Dict[str, Any]):
+        """Обновление интерфейса результатами уравнивания
+        
+        Args:
+            result: Словарь с результатами уравнивания
+        """
+        # Обновление таблицы пунктов
+        if hasattr(self, 'points_table') and 'adjusted_points' in result:
+            self.points_table.update_data(result['adjusted_points'])
+        
+        # Обновление таблицы измерений
+        if hasattr(self, 'observations_table') and 'residuals' in result:
+            self.observations_table.update_residuals(result['residuals'])
+        
+        # Перерисовка плана
+        if hasattr(self, 'plan_view'):
+            self.plan_view.draw_network(self.current_project)
+            
+            # Отрисовка эллипсов ошибок (если есть)
+            if 'accuracy' in result and 'error_ellipses' in result['accuracy']:
+                self.plan_view.draw_error_ellipses(result['accuracy']['error_ellipses'])
     
     def _import_from_instrument(self):
         """Импорт данных из прибора"""

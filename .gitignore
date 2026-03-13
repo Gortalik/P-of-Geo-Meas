@@ -1,5 +1,5 @@
 ```
-# Byte-compiled / optimized / DLL files
+# Python
 __pycache__/
 *.pyc
 *.pyo
@@ -8,45 +8,30 @@ __pycache__/
 env/
 venv/
 .venv/
-.venv-*/
 .ENV
-.env
-.env.*
-.venv.bak/
-.python-version
+.ENV.local
 
-# Build artifacts
+# Build and distribution artifacts
 build/
 dist/
 *.egg-info/
 
-# Testing
-.coverage
-htmlcov/
-.pytest_cache/
-.mypy_cache/
-.tox/
-.coverage*
+# Logs
+*.log
 
-# IDE
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Coverage reports
+.coverage
+coverage/
+htmlcov/
+
+# IDE specific
 .vscode/
 .idea/
 *.swp
 *.swo
 *.tmp
-
-# OS
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-# Logs
-*.log
-
-# Coverage
-coverage/
 ```

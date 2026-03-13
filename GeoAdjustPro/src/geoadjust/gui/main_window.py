@@ -410,12 +410,60 @@ class MainWindow(QMainWindow):
     def _create_project(self):
         """Создание нового проекта"""
         logger.info("Создание нового проекта")
-        # TODO: Реализация создания проекта
+        from .dialogs.project_wizard import ProjectWizard
+        
+        wizard = ProjectWizard(self)
+        if wizard.exec_() == QDialog.Accepted:
+            project_data = wizard.get_project_data()
+            self._setup_project(project_data)
+    
+    def _setup_project(self, project_data: Dict[str, Any]):
+        """Настройка созданного проекта"""
+        try:
+            from geoadjust.io.project.project_manager import ProjectManager
+            
+            project_manager = ProjectManager()
+            project = project_manager.create_project(
+                project_data['name'],
+                Path(project_data['path'])
+            )
+            self.current_project = project
+            
+            # Обновление интерфейса
+            self.project_label.setText(f"Проект: {project_data['name']}")
+            self.statusBar().showMessage(f"Проект '{project_data['name']}' создан", 3000)
+            
+            logger.info(f"Проект создан: {project_data['name']}")
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось создать проект:\n{str(e)}")
+            logger.error(f"Ошибка при создании проекта: {e}")
     
     def _open_project(self):
         """Открытие существующего проекта"""
         logger.info("Открытие проекта")
-        # TODO: Реализация открытия проекта
+        
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Открыть проект",
+            "",
+            "GeoAdjust Project (*.gad);;Все файлы (*)"
+        )
+        
+        if file_path:
+            try:
+                from geoadjust.io.project.project_manager import ProjectManager
+                
+                project_manager = ProjectManager()
+                self.current_project = project_manager.open_project(Path(file_path))
+                
+                # Обновление интерфейса
+                self.project_label.setText(f"Проект: {self.current_project.name}")
+                self.statusBar().showMessage(f"Проект '{self.current_project.name}' загружен", 3000)
+                
+                logger.info(f"Проект загружен: {self.current_project.name}")
+            except Exception as e:
+                QMessageBox.critical(self, "Ошибка", f"Не удалось открыть проект:\n{str(e)}")
+                logger.error(f"Ошибка при открытии проекта: {e}")
     
     def _save_project(self):
         """Сохранение проекта"""

@@ -4,55 +4,32 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
-.Python
-build/
-develop-eggs/
+
+# Build and distribution artifacts
 dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
+build/
 *.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
 
 # Virtual environments
 venv/
-env/
-ENV/
 .venv/
-.env/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db
+env/
 
 # Logs
 *.log
 
-# Coverage
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Coverage reports
 .coverage
+coverage/
 htmlcov/
-.coverage.*
 
-# Temporary files
-*.tmp
-*.temp
+# Pytest cache
+.pytest_cache/
 
-# Environment files
-.env
-.env.local
-*.env.*
+# MyPy cache
+.mypy_cache/
 ```

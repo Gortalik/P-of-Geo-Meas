@@ -1,48 +1,22 @@
 ```
-# Python
-__pycache__/
+# Compiled Python files
 *.pyc
-*.pyo
-*.pyd
-.Python
-build/
-dist/
-*.egg
-*.egg-info/
-.eggs/
-pip-log.txt
-pip-delete-this-directory.txt
+__pycache__/
 
-# Virtual environments
-venv/
+# Dependencies
 .venv/
-env/
-ENV/
-.ENV/
+venv/
+node_modules/
 
-# Testing
-.coverage
-coverage/
-htmlcov/
-.nox/
-.tox/
-.coverage.*
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
+# Logs and temporary files
+*.log
 *.tmp
 
-# OS
-.DS_Store
-Thumbs.db
+# Editors
+.vscode/
+.idea/
 
-# Logs
-*.log
-
-# Environment variables
+# Environment files
 .env
 .env.local
 *.env.*

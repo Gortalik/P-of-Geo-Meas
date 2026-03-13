@@ -133,10 +133,11 @@ class PreprocessingModule:
         station_obs.sort(key=lambda obs: (obs.datetime or datetime.min,
                                           obs.reception_number or 0))
 
-        # Распознавание приемов по замыканию на начальную цель
+        # Распознавание приемов
         receptions = []
         current_reception = []
         first_target = None
+        max_reception_length = 20  # Максимальное число направлений в приёме
 
         for obs in station_obs:
             if not current_reception:
@@ -149,15 +150,30 @@ class PreprocessingModule:
                 receptions.append(current_reception)
                 current_reception = []
                 first_target = None
+            elif len(current_reception) >= max_reception_length:
+                # Принудительное завершение слишком длинного приема
+                receptions.append(current_reception)
+                current_reception = [obs]
+                first_target = obs.to_point
+                if self.logger:
+                    self.logger.warning(f"Станция {station_id}: прием превысил "
+                                      f"максимальную длину ({max_reception_length})")
             else:
                 # Продолжение текущего приема
                 current_reception.append(obs)
 
-        # Обработка незавершённого приема (без замыкания)
+        # Обработка незавершённого приема
         if current_reception:
-            receptions.append(current_reception)
-            if self.logger:
-                self.logger.warning(f"Станция {station_id}: прием без замыкания на начальную цель")
+            # Проверка: если приём содержит хотя бы 3 направления, считаем его валидным
+            if len(current_reception) >= 3:
+                receptions.append(current_reception)
+                if self.logger:
+                    self.logger.warning(f"Станция {station_id}: незавершённый прием "
+                                      f"({len(current_reception)} направлений)")
+            else:
+                if self.logger:
+                    self.logger.warning(f"Станция {station_id}: отброшен неполный прием "
+                                      f"({len(current_reception)} направлений)")
 
         # Проверка замыкания горизонта для каждого приема
         closure_results = []

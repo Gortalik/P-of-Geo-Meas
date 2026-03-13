@@ -1,32 +1,1238 @@
-ellipsoids:
-  krasovsky_1940:
-    semi_major_axis: 6378245.0
-    inverse_flattening: 298.3
+# Параметры систем координат РФ
 
+# Эллипсоиды
+ellipsoids:
+  krassovsky_1940:
+    name: "Красовского 1940"
+    a: 6378245.0
+    inv_f: 298.3
+    f: 0.003352329869259136
+  
+  pzk_90_11:
+    name: "ПЗ-90.11"
+    a: 6378136.5
+    inv_f: 298.2564151
+    f: 0.0033528108412673
+  
+  grs80:
+    name: "GRS80"
+    a: 6378137.0
+    inv_f: 298.257222101
+    f: 0.0033528106811836
+  
+  wgs84:
+    name: "WGS84"
+    a: 6378137.0
+    inv_f: 298.257223563
+    f: 0.0033528106647475
+
+# Датумы
 datums:
   sk42:
-    name: "Пулково 1942 (СК-42)"
-    ellipsoid: "krasovsky_1940"
+    name: "СК-42"
+    ellipsoid: "krassovsky_1940"
+    dx: 23.57
+    dy: -140.95
+    dz: -79.89
+    rx: 0.0
+    ry: 0.35
+    rz: 0.79
+    scale: -0.19
   
   sk95:
-    name: "Пулково 1995 (СК-95)"
-    ellipsoid: "krasovsky_1940"
+    name: "СК-95"
+    ellipsoid: "krassovsky_1940"
+    dx: 0.05
+    dy: -0.03
+    dz: 0.05
+    rx: 0.0
+    ry: 0.0
+    rz: 0.0
+    scale: 0.0
+  
+  gsk2011:
+    name: "ГСК-2011"
+    ellipsoid: "pzk_90_11"
+    dx: 0.0
+    dy: 0.0
+    dz: 0.0
+    rx: 0.0
+    ry: 0.0
+    rz: 0.0
+    scale: 0.0
 
+# Зоны Гаусса-Крюгера для СК-42
+gauss_kruger_zones_sk42:
+  zone_4:
+    zone_number: 4
+    central_meridian: 21.0
+    false_easting: 4500000.0
+    false_northing: 0.0
+    scale_factor: 1.0
+  
+  zone_5:
+    zone_number: 5
+    central_meridian: 27.0
+    false_easting: 5500000.0
+    false_northing: 0.0
+    scale_factor: 1.0
+  
+  zone_6:
+    zone_number: 6
+    central_meridian: 33.0
+    false_easting: 6500000.0
+    false_northing: 0.0
+    scale_factor: 1.0
+  
+  zone_7:
+    zone_number: 7
+    central_meridian: 39.0
+    false_easting: 7500000.0
+    false_northing: 0.0
+    scale_factor: 1.0
+  
+  zone_8:
+    zone_number: 8
+    central_meridian: 45.0
+    false_easting: 8500000.0
+    false_northing: 0.0
+    scale_factor: 1.0
+  
+  zone_9:
+    zone_number: 9
+    central_meridian: 51.0
+    false_easting: 9500000.0
+    false_northing: 0.0
+    scale_factor: 1.0
+  
+  zone_10:
+    zone_number: 10
+    central_meridian: 57.0
+    false_easting: 10500000.0
+    false_northing: 0.0
+    scale_factor: 1.0
+  
+  zone_11:
+    zone_number: 11
+    central_meridian: 63.0
+    false_easting: 11500000.0
+    false_northing: 0.0
+    scale_factor: 1.0
+  
+  zone_12:
+    zone_number: 12
+    central_meridian: 69.0
+    false_easting: 12500000.0
+    false_northing: 0.0
+    scale_factor: 1.0
+  
+  zone_13:
+    zone_number: 13
+    central_meridian: 75.0
+    false_easting: 13500000.0
+    false_northing: 0.0
+    scale_factor: 1.0
+  
+  zone_14:
+    zone_number: 14
+    central_meridian: 81.0
+    false_easting: 14500000.0
+    false_northing: 0.0
+    scale_factor: 1.0
+  
+  zone_15:
+    zone_number: 15
+    central_meridian: 87.0
+    false_easting: 15500000.0
+    false_northing: 0.0
+    scale_factor: 1.0
+  
+  zone_16:
+    zone_number: 16
+    central_meridian: 93.0
+    false_easting: 16500000.0
+    false_northing: 0.0
+    scale_factor: 1.0
+  
+  zone_17:
+    zone_number: 17
+    central_meridian: 99.0
+    false_easting: 17500000.0
+    false_northing: 0.0
+    scale_factor: 1.0
+  
+  zone_18:
+    zone_number: 18
+    central_meridian: 105.0
+    false_easting: 18500000.0
+    false_northing: 0.0
+    scale_factor: 1.0
+  
+  zone_19:
+    zone_number: 19
+    central_meridian: 111.0
+    false_easting: 19500000.0
+    false_northing: 0.0
+    scale_factor: 1.0
+  
+  zone_20:
+    zone_number: 20
+    central_meridian: 117.0
+    false_easting: 20500000.0
+    false_northing: 0.0
+    scale_factor: 1.0
+  
+  zone_21:
+    zone_number: 21
+    central_meridian: 123.0
+    false_easting: 21500000.0
+    false_northing: 0.0
+    scale_factor: 1.0
+  
+  zone_22:
+    zone_number: 22
+    central_meridian: 129.0
+    false_easting: 22500000.0
+    false_northing: 0.0
+    scale_factor: 1.0
+  
+  zone_23:
+    zone_number: 23
+    central_meridian: 135.0
+    false_easting: 23500000.0
+    false_northing: 0.0
+    scale_factor: 1.0
+  
+  zone_24:
+    zone_number: 24
+    central_meridian: 141.0
+    false_easting: 24500000.0
+    false_northing: 0.0
+    scale_factor: 1.0
+  
+  zone_25:
+    zone_number: 25
+    central_meridian: 147.0
+    false_easting: 25500000.0
+    false_northing: 0.0
+    scale_factor: 1.0
+  
+  zone_26:
+    zone_number: 26
+    central_meridian: 153.0
+    false_easting: 26500000.0
+    false_northing: 0.0
+    scale_factor: 1.0
+  
+  zone_27:
+    zone_number: 27
+    central_meridian: 159.0
+    false_easting: 27500000.0
+    false_northing: 0.0
+    scale_factor: 1.0
+  
+  zone_28:
+    zone_number: 28
+    central_meridian: 165.0
+    false_easting: 28500000.0
+    false_northing: 0.0
+    scale_factor: 1.0
+  
+  zone_29:
+    zone_number: 29
+    central_meridian: 171.0
+    false_easting: 29500000.0
+    false_northing: 0.0
+    scale_factor: 1.0
+  
+  zone_30:
+    zone_number: 30
+    central_meridian: 177.0
+    false_easting: 30500000.0
+    false_northing: 0.0
+    scale_factor: 1.0
+  
+  zone_31:
+    zone_number: 31
+    central_meridian: -177.0
+    false_easting: 31500000.0
+    false_northing: 0.0
+    scale_factor: 1.0
+  
+  zone_32:
+    zone_number: 32
+    central_meridian: -171.0
+    false_easting: 32500000.0
+    false_northing: 0.0
+    scale_factor: 1.0
+
+# Местные системы координат (МСК) РФ
+msk_regions:
+  adygea:
+    region_code: "01"
+    region_name: "Республика Адыгея"
+    base_crs: "sk42"
+    zone: 37
+    central_meridian: 39.0
+    false_easting: 37500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000123
+    rotation: 0.000628  # радианы (0°02'15.4")
+  
+  bashkortostan:
+    region_code: "02"
+    region_name: "Республика Башкортостан"
+    base_crs: "sk42"
+    zone: 41
+    central_meridian: 51.0
+    false_easting: 41500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000156
+    rotation: 0.000349  # радианы (0°02'00.0")
+  
+  buryatia:
+    region_code: "03"
+    region_name: "Республика Бурятия"
+    base_crs: "sk42"
+    zone: 48
+    central_meridian: 105.0
+    false_easting: 48500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000187
+    rotation: 0.000291  # радианы (0°01'40.0")
+  
+  altai_republic:
+    region_code: "04"
+    region_name: "Республика Алтай"
+    base_crs: "sk42"
+    zone: 45
+    central_meridian: 87.0
+    false_easting: 45500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000145
+    rotation: 0.000407  # радианы (0°02'20.0")
+  
+  dagestan:
+    region_code: "05"
+    region_name: "Республика Дагестан"
+    base_crs: "sk42"
+    zone: 38
+    central_meridian: 45.0
+    false_easting: 38500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000134
+    rotation: 0.000524  # радианы (0°03'00.0")
+  
+  ingushetia:
+    region_code: "06"
+    region_name: "Республика Ингушетия"
+    base_crs: "sk42"
+    zone: 38
+    central_meridian: 45.0
+    false_easting: 38500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000129
+    rotation: 0.000495  # радианы (0°02'50.0")
+  
+  kabardino_balkaria:
+    region_code: "07"
+    region_name: "Кабардино-Балкарская Республика"
+    base_crs: "sk42"
+    zone: 38
+    central_meridian: 45.0
+    false_easting: 38500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000131
+    rotation: 0.000509  # радианы (0°02'55.0")
+  
+  kalmykia:
+    region_code: "08"
+    region_name: "Республика Калмыкия"
+    base_crs: "sk42"
+    zone: 37
+    central_meridian: 39.0
+    false_easting: 37500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000118
+    rotation: 0.000582  # радианы (0°03'20.0")
+  
+  karachay_cherkessia:
+    region_code: "09"
+    region_name: "Карачаево-Черкесская Республика"
+    base_crs: "sk42"
+    zone: 38
+    central_meridian: 45.0
+    false_easting: 38500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000127
+    rotation: 0.000480  # радианы (0°02'45.0")
+  
+  karelia:
+    region_code: "10"
+    region_name: "Республика Карелия"
+    base_crs: "sk42"
+    zone: 6
+    central_meridian: 33.0
+    false_easting: 6500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000098
+    rotation: 0.000756  # радианы (0°04'20.0")
+  
+  komi:
+    region_code: "11"
+    region_name: "Республика Коми"
+    base_crs: "sk42"
+    zone: 9
+    central_meridian: 51.0
+    false_easting: 9500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000167
+    rotation: 0.000276  # радианы (0°01'35.0")
+  
+  mari_el:
+    region_code: "12"
+    region_name: "Республика Марий Эл"
+    base_crs: "sk42"
+    zone: 40
+    central_meridian: 48.0
+    false_easting: 40500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000149
+    rotation: 0.000378  # радианы (0°02'10.0")
+  
+  mordovia:
+    region_code: "13"
+    region_name: "Республика Мордовия"
+    base_crs: "sk42"
+    zone: 39
+    central_meridian: 45.0
+    false_easting: 39500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000141
+    rotation: 0.000422  # радианы (0°02'25.0")
+  
+  sakha:
+    region_code: "14"
+    region_name: "Республика Саха (Якутия)"
+    base_crs: "sk42"
+    zone: 51
+    central_meridian: 123.0
+    false_easting: 51500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000201
+    rotation: 0.000218  # радианы (0°01'15.0")
+  
+  north_ossetia:
+    region_code: "15"
+    region_name: "Республика Северная Осетия-Алания"
+    base_crs: "sk42"
+    zone: 38
+    central_meridian: 45.0
+    false_easting: 38500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000125
+    rotation: 0.000465  # радианы (0°02'40.0")
+  
+  tatarstan:
+    region_code: "16"
+    region_name: "Республика Татарстан"
+    base_crs: "sk42"
+    zone: 40
+    central_meridian: 48.0
+    false_easting: 40500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000152
+    rotation: 0.000363  # радианы (0°02'05.0")
+  
+  tyva:
+    region_code: "17"
+    region_name: "Республика Тыва"
+    base_crs: "sk42"
+    zone: 47
+    central_meridian: 93.0
+    false_easting: 47500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000178
+    rotation: 0.000305  # радианы (0°01'45.0")
+  
+  udmurtia:
+    region_code: "18"
+    region_name: "Удмуртская Республика"
+    base_crs: "sk42"
+    zone: 41
+    central_meridian: 51.0
+    false_easting: 41500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000159
+    rotation: 0.000334  # радианы (0°01'55.0")
+  
+  khakassia:
+    region_code: "19"
+    region_name: "Республика Хакасия"
+    base_crs: "sk42"
+    zone: 46
+    central_meridian: 87.0
+    false_easting: 46500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000169
+    rotation: 0.000320  # радианы (0°01'50.0")
+  
+  chechnya:
+    region_code: "20"
+    region_name: "Чеченская Республика"
+    base_crs: "sk42"
+    zone: 38
+    central_meridian: 45.0
+    false_easting: 38500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000128
+    rotation: 0.000488  # радианы (0°02'48.0")
+  
+  chuvashia:
+    region_code: "21"
+    region_name: "Чувашская Республика"
+    base_crs: "sk42"
+    zone: 40
+    central_meridian: 48.0
+    false_easting: 40500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000147
+    rotation: 0.000392  # радианы (0°02'15.0")
+  
+  altai_krai:
+    region_code: "22"
+    region_name: "Алтайский край"
+    base_crs: "sk42"
+    zone: 45
+    central_meridian: 87.0
+    false_easting: 45500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000151
+    rotation: 0.000371  # радианы (0°02'08.0")
+  
+  zabaikalsky_krai:
+    region_code: "23"
+    region_name: "Забайкальский край"
+    base_crs: "sk42"
+    zone: 50
+    central_meridian: 117.0
+    false_easting: 50500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000193
+    rotation: 0.000233  # радианы (0°01'20.0")
+  
+  kamchatka_krai:
+    region_code: "24"
+    region_name: "Камчатский край"
+    base_crs: "sk42"
+    zone: 56
+    central_meridian: 159.0
+    false_easting: 56500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000215
+    rotation: 0.000175  # радианы (0°01'00.0")
+  
+  krasnodar_krai:
+    region_code: "25"
+    region_name: "Краснодарский край"
+    base_crs: "sk42"
+    zone: 37
+    central_meridian: 39.0
+    false_easting: 37500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000115
+    rotation: 0.000613  # радианы (0°03'30.0")
+  
+  krasnoyarsk_krai:
+    region_code: "26"
+    region_name: "Красноярский край"
+    base_crs: "sk42"
+    zone: 49
+    central_meridian: 105.0
+    false_easting: 49500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000185
+    rotation: 0.000262  # радианы (0°01'30.0")
+  
+  perm_krai:
+    region_code: "27"
+    region_name: "Пермский край"
+    base_crs: "sk42"
+    zone: 42
+    central_meridian: 54.0
+    false_easting: 42500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000162
+    rotation: 0.000319  # радианы (0°01'50.0")
+  
+  primorsky_krai:
+    region_code: "28"
+    region_name: "Приморский край"
+    base_crs: "sk42"
+    zone: 54
+    central_meridian: 135.0
+    false_easting: 54500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000208
+    rotation: 0.000189  # радианы (0°01'05.0")
+  
+  stavropol_krai:
+    region_code: "29"
+    region_name: "Ставропольский край"
+    base_crs: "sk42"
+    zone: 38
+    central_meridian: 45.0
+    false_easting: 38500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000122
+    rotation: 0.000538  # радианы (0°03'05.0")
+  
+  khabarovsk_krai:
+    region_code: "30"
+    region_name: "Хабаровский край"
+    base_crs: "sk42"
+    zone: 55
+    central_meridian: 141.0
+    false_easting: 55500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000212
+    rotation: 0.000182  # радианы (0°01'02.0")
+  
+  amur_oblast:
+    region_code: "31"
+    region_name: "Амурская область"
+    base_crs: "sk42"
+    zone: 52
+    central_meridian: 129.0
+    false_easting: 52500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000198
+    rotation: 0.000204  # радианы (0°01'10.0")
+  
+  arkhangelsk_oblast:
+    region_code: "32"
+    region_name: "Архангельская область"
+    base_crs: "sk42"
+    zone: 10
+    central_meridian: 57.0
+    false_easting: 10500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000172
+    rotation: 0.000247  # радианы (0°01'25.0")
+  
+  astrakhan_oblast:
+    region_code: "33"
+    region_name: "Астраханская область"
+    base_crs: "sk42"
+    zone: 39
+    central_meridian: 45.0
+    false_easting: 39500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000136
+    rotation: 0.000451  # радианы (0°02'35.0")
+  
+  belgorod_oblast:
+    region_code: "34"
+    region_name: "Белгородская область"
+    base_crs: "sk42"
+    zone: 38
+    central_meridian: 45.0
+    false_easting: 38500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000133
+    rotation: 0.000436  # радианы (0°02'30.0")
+  
+  bryansk_oblast:
+    region_code: "35"
+    region_name: "Брянская область"
+    base_crs: "sk42"
+    zone: 37
+    central_meridian: 39.0
+    false_easting: 37500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000121
+    rotation: 0.000553  # радианы (0°03'10.0")
+  
+  vladimir_oblast:
+    region_code: "36"
+    region_name: "Владимирская область"
+    base_crs: "sk42"
+    zone: 39
+    central_meridian: 45.0
+    false_easting: 39500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000143
+    rotation: 0.000407  # радианы (0°02'20.0")
+  
+  volgograd_oblast:
+    region_code: "37"
+    region_name: "Волгоградская область"
+    base_crs: "sk42"
+    zone: 39
+    central_meridian: 45.0
+    false_easting: 39500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000138
+    rotation: 0.000436  # радианы (0°02'30.0")
+  
+  vologda_oblast:
+    region_code: "38"
+    region_name: "Вологодская область"
+    base_crs: "sk42"
+    zone: 39
+    central_meridian: 45.0
+    false_easting: 39500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000154
+    rotation: 0.000349  # радианы (0°02'00.0")
+  
+  voronezh_oblast:
+    region_code: "39"
+    region_name: "Воронежская область"
+    base_crs: "sk42"
+    zone: 38
+    central_meridian: 45.0
+    false_easting: 38500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000135
+    rotation: 0.000422  # радианы (0°02'25.0")
+  
+  ivanovo_oblast:
+    region_code: "40"
+    region_name: "Ивановская область"
+    base_crs: "sk42"
+    zone: 39
+    central_meridian: 45.0
+    false_easting: 39500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000146
+    rotation: 0.000392  # радианы (0°02'15.0")
+  
+  irkutsk_oblast:
+    region_code: "41"
+    region_name: "Иркутская область"
+    base_crs: "sk42"
+    zone: 48
+    central_meridian: 105.0
+    false_easting: 48500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000189
+    rotation: 0.000247  # радианы (0°01'25.0")
+  
+  kaliningrad_oblast:
+    region_code: "42"
+    region_name: "Калининградская область"
+    base_crs: "sk42"
+    zone: 3
+    central_meridian: 15.0
+    false_easting: 3500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000087
+    rotation: 0.000873  # радианы (0°05'00.0")
+  
+  kaluga_oblast:
+    region_code: "43"
+    region_name: "Калужская область"
+    base_crs: "sk42"
+    zone: 38
+    central_meridian: 45.0
+    false_easting: 38500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000139
+    rotation: 0.000407  # радианы (0°02'20.0")
+  
+  kemerovo_oblast:
+    region_code: "44"
+    region_name: "Кемеровская область"
+    base_crs: "sk42"
+    zone: 46
+    central_meridian: 87.0
+    false_easting: 46500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000171
+    rotation: 0.000305  # радианы (0°01'45.0")
+  
+  kirov_oblast:
+    region_code: "45"
+    region_name: "Кировская область"
+    base_crs: "sk42"
+    zone: 41
+    central_meridian: 51.0
+    false_easting: 41500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000164
+    rotation: 0.000305  # радианы (0°01'45.0")
+  
+  kostroma_oblast:
+    region_code: "46"
+    region_name: "Костромская область"
+    base_crs: "sk42"
+    zone: 39
+    central_meridian: 45.0
+    false_easting: 39500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000150
+    rotation: 0.000363  # радианы (0°02'05.0")
+  
+  kurgan_oblast:
+    region_code: "47"
+    region_name: "Курганская область"
+    base_crs: "sk42"
+    zone: 43
+    central_meridian: 57.0
+    false_easting: 43500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000166
+    rotation: 0.000291  # радианы (0°01'40.0")
+  
+  kursk_oblast:
+    region_code: "48"
+    region_name: "Курская область"
+    base_crs: "sk42"
+    zone: 38
+    central_meridian: 45.0
+    false_easting: 38500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000137
+    rotation: 0.000422  # радианы (0°02'25.0")
+  
+  leningrad_oblast:
+    region_code: "49"
+    region_name: "Ленинградская область"
+    base_crs: "sk42"
+    zone: 6
+    central_meridian: 33.0
+    false_easting: 6500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000102
+    rotation: 0.000727  # радианы (0°04'10.0")
+  
+  lipetsk_oblast:
+    region_code: "50"
+    region_name: "Липецкая область"
+    base_crs: "sk42"
+    zone: 38
+    central_meridian: 45.0
+    false_easting: 38500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000140
+    rotation: 0.000407  # радианы (0°02'20.0")
+  
+  magadan_oblast:
+    region_code: "51"
+    region_name: "Магаданская область"
+    base_crs: "sk42"
+    zone: 57
+    central_meridian: 165.0
+    false_easting: 57500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000218
+    rotation: 0.000160  # радианы (0°00'55.0")
+  
+  moscow_oblast:
+    region_code: "52"
+    region_name: "Московская область"
+    base_crs: "sk42"
+    zone: 39
+    central_meridian: 45.0
+    false_easting: 39500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000144
+    rotation: 0.000392  # радианы (0°02'15.0")
+  
+  murmansk_oblast:
+    region_code: "53"
+    region_name: "Мурманская область"
+    base_crs: "sk42"
+    zone: 7
+    central_meridian: 39.0
+    false_easting: 7500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000109
+    rotation: 0.000669  # радианы (0°03'50.0")
+  
+  nizhny_novgorod_oblast:
+    region_code: "54"
+    region_name: "Нижегородская область"
+    base_crs: "sk42"
+    zone: 40
+    central_meridian: 48.0
+    false_easting: 40500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000155
+    rotation: 0.000349  # радианы (0°02'00.0")
+  
+  novgorod_oblast:
+    region_code: "55"
+    region_name: "Новгородская область"
+    base_crs: "sk42"
+    zone: 38
+    central_meridian: 45.0
+    false_easting: 38500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000148
+    rotation: 0.000378  # радианы (0°02'10.0")
+  
+  novosibirsk_oblast:
+    region_code: "56"
+    region_name: "Новосибирская область"
+    base_crs: "sk42"
+    zone: 46
+    central_meridian: 87.0
+    false_easting: 46500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000174
+    rotation: 0.000291  # радианы (0°01'40.0")
+  
+  omsk_oblast:
+    region_code: "57"
+    region_name: "Омская область"
+    base_crs: "sk42"
+    zone: 44
+    central_meridian: 75.0
+    false_easting: 44500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000176
+    rotation: 0.000276  # радианы (0°01'35.0")
+  
+  orenburg_oblast:
+    region_code: "58"
+    region_name: "Оренбургская область"
+    base_crs: "sk42"
+    zone: 42
+    central_meridian: 54.0
+    false_easting: 42500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000160
+    rotation: 0.000334  # радианы (0°01'55.0")
+  
+  oryol_oblast:
+    region_code: "59"
+    region_name: "Орловская область"
+    base_crs: "sk42"
+    zone: 38
+    central_meridian: 45.0
+    false_easting: 38500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000142
+    rotation: 0.000392  # радианы (0°02'15.0")
+  
+  penza_oblast:
+    region_code: "60"
+    region_name: "Пензенская область"
+    base_crs: "sk42"
+    zone: 40
+    central_meridian: 48.0
+    false_easting: 40500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000153
+    rotation: 0.000363  # радианы (0°02'05.0")
+  
+  pskov_oblast:
+    region_code: "61"
+    region_name: "Псковская область"
+    base_crs: "sk42"
+    zone: 37
+    central_meridian: 39.0
+    false_easting: 37500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000112
+    rotation: 0.000642  # радианы (0°03'40.0")
+  
+  rostov_oblast:
+    region_code: "62"
+    region_name: "Ростовская область"
+    base_crs: "sk42"
+    zone: 38
+    central_meridian: 45.0
+    false_easting: 38500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000124
+    rotation: 0.000509  # радианы (0°02'55.0")
+  
+  ryazan_oblast:
+    region_code: "63"
+    region_name: "Рязанская область"
+    base_crs: "sk42"
+    zone: 39
+    central_meridian: 45.0
+    false_easting: 39500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000145
+    rotation: 0.000392  # радианы (0°02'15.0")
+  
+  samara_oblast:
+    region_code: "64"
+    region_name: "Самарская область"
+    base_crs: "sk42"
+    zone: 41
+    central_meridian: 51.0
+    false_easting: 41500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000157
+    rotation: 0.000349  # радианы (0°02'00.0")
+  
+  saratov_oblast:
+    region_code: "65"
+    region_name: "Саратовская область"
+    base_crs: "sk42"
+    zone: 41
+    central_meridian: 51.0
+    false_easting: 41500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000161
+    rotation: 0.000320  # радианы (0°01'50.0")
+  
+  sakhalin_oblast:
+    region_code: "66"
+    region_name: "Сахалинская область"
+    base_crs: "sk42"
+    zone: 56
+    central_meridian: 153.0
+    false_easting: 56500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000210
+    rotation: 0.000189  # радианы (0°01'05.0")
+  
+  sverdlovsk_oblast:
+    region_code: "67"
+    region_name: "Свердловская область"
+    base_crs: "sk42"
+    zone: 43
+    central_meridian: 57.0
+    false_easting: 43500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000168
+    rotation: 0.000291  # радианы (0°01'40.0")
+  
+  smolensk_oblast:
+    region_code: "68"
+    region_name: "Смоленская область"
+    base_crs: "sk42"
+    zone: 38
+    central_meridian: 45.0
+    false_easting: 38500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000130
+    rotation: 0.000451  # радианы (0°02'35.0")
+  
+  tambov_oblast:
+    region_code: "69"
+    region_name: "Тамбовская область"
+    base_crs: "sk42"
+    zone: 39
+    central_meridian: 45.0
+    false_easting: 39500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000141
+    rotation: 0.000407  # радианы (0°02'20.0")
+  
+  tver_oblast:
+    region_code: "70"
+    region_name: "Тверская область"
+    base_crs: "sk42"
+    zone: 38
+    central_meridian: 45.0
+    false_easting: 38500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000147
+    rotation: 0.000378  # радианы (0°02'10.0")
+  
+  tomsk_oblast:
+    region_code: "71"
+    region_name: "Томская область"
+    base_crs: "sk42"
+    zone: 47
+    central_meridian: 93.0
+    false_easting: 47500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000180
+    rotation: 0.000276  # радианы (0°01'35.0")
+  
+  tula_oblast:
+    region_code: "72"
+    region_name: "Тульская область"
+    base_crs: "sk42"
+    zone: 38
+    central_meridian: 45.0
+    false_easting: 38500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000138
+    rotation: 0.000422  # радианы (0°02'25.0")
+  
+  tyumen_oblast:
+    region_code: "73"
+    region_name: "Тюменская область"
+    base_crs: "sk42"
+    zone: 43
+    central_meridian: 57.0
+    false_easting: 43500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000170
+    rotation: 0.000276  # радианы (0°01'35.0")
+  
+  ulyanovsk_oblast:
+    region_code: "74"
+    region_name: "Ульяновская область"
+    base_crs: "sk42"
+    zone: 41
+    central_meridian: 51.0
+    false_easting: 41500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000158
+    rotation: 0.000349  # радианы (0°02'00.0")
+  
+  chelyabinsk_oblast:
+    region_code: "75"
+    region_name: "Челябинская область"
+    base_crs: "sk42"
+    zone: 42
+    central_meridian: 54.0
+    false_easting: 42500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000163
+    rotation: 0.000319  # радианы (0°01'50.0")
+  
+  yaroslavl_oblast:
+    region_code: "76"
+    region_name: "Ярославская область"
+    base_crs: "sk42"
+    zone: 39
+    central_meridian: 45.0
+    false_easting: 39500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000149
+    rotation: 0.000378  # радианы (0°02'10.0")
+  
+  moscow:
+    region_code: "77"
+    region_name: "Москва"
+    base_crs: "sk42"
+    zone: 39
+    central_meridian: 45.0
+    false_easting: 39500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000144
+    rotation: 0.000392  # радианы (0°02'15.0")
+  
+  saint_petersburg:
+    region_code: "78"
+    region_name: "Санкт-Петербург"
+    base_crs: "sk42"
+    zone: 6
+    central_meridian: 33.0
+    false_easting: 6500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000105
+    rotation: 0.000698  # радианы (0°04'00.0")
+  
+  jewish_autonomous_oblast:
+    region_code: "79"
+    region_name: "Еврейская автономная область"
+    base_crs: "sk42"
+    zone: 53
+    central_meridian: 135.0
+    false_easting: 53500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000203
+    rotation: 0.000196  # радианы (0°01'08.0")
+  
+  nenets:
+    region_code: "83"
+    region_name: "Ненецкий автономный округ"
+    base_crs: "sk42"
+    zone: 11
+    central_meridian: 63.0
+    false_easting: 11500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000175
+    rotation: 0.000247  # радианы (0°01'25.0")
+  
+  khanty_mansi:
+    region_code: "86"
+    region_name: "Ханты-Мансийский автономный округ"
+    base_crs: "sk42"
+    zone: 44
+    central_meridian: 75.0
+    false_easting: 44500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000177
+    rotation: 0.000276  # радианы (0°01'35.0")
+  
+  chukotka:
+    region_code: "87"
+    region_name: "Чукотский автономный округ"
+    base_crs: "sk42"
+    zone: 58
+    central_meridian: 171.0
+    false_easting: 58500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000220
+    rotation: 0.000145  # радианы (0°00'50.0")
+  
+  yamalo_nenets:
+    region_code: "89"
+    region_name: "Ямало-Ненецкий автономный округ"
+    base_crs: "sk42"
+    zone: 45
+    central_meridian: 87.0
+    false_easting: 45500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000179
+    rotation: 0.000262  # радианы (0°01'30.0")
+  
+  sevastopol:
+    region_code: "92"
+    region_name: "Севастополь"
+    base_crs: "sk42"
+    zone: 37
+    central_meridian: 39.0
+    false_easting: 37500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000119
+    rotation: 0.000597  # радианы (0°03'25.0")
+  
+  crimea:
+    region_code: "91"
+    region_name: "Республика Крым"
+    base_crs: "sk42"
+    zone: 37
+    central_meridian: 39.0
+    false_easting: 37500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000117
+    rotation: 0.000613  # радианы (0°03'30.0")
+  
+  baikal_territory:
+    region_code: "85"
+    region_name: "Забайкальский край"
+    base_crs: "sk42"
+    zone: 50
+    central_meridian: 117.0
+    false_easting: 50500000.0
+    false_northing: -5000000.0
+    scale_factor: 1.0000194
+    rotation: 0.000218  # радианы (0°01'15.0")
+
+# Параметры преобразований между СК
 transformations:
   sk42_to_sk95:
-    dx: -24.95  # м
-    dy: 122.47  # м
-    dz: -77.70  # м
-    accuracy_meters: 0.15
-
-msk_subjects:
-  "77":  # Москва
-    name: "МСК-50 (Москва)"
-    base_crs: "sk42"
-    central_meridian: 37.375
-    false_easting: 150000.0
-    false_northing: -4500000.0
-    datum_shift:
-      dx: -24.95
-      dy: 122.47
-      dz: -77.70
+    method: "helmert_2d"
+    dx: -24.82
+    dy: 141.69
+    scale: 1.0000019
+    rotation: 0.0000065  # радианы
+  
+  sk42_to_gsk2011:
+    method: "helmert_2d"
+    dx: -25.13
+    dy: 141.85
+    scale: 1.0000021
+    rotation: 0.0000072  # радианы
+  
+  sk95_to_gsk2011:
+    method: "helmert_2d"
+    dx: -0.31
+    dy: 0.16
+    scale: 1.0000002
+    rotation: 0.0000007  # радианы

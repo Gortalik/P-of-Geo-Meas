@@ -1,6 +1,6 @@
 import numpy as np
 from scipy import sparse
-from typing import List, NamedTuple, Literal
+from typing import List, NamedTuple, Literal, Dict
 import warnings
 import logging
 

@@ -52,12 +52,38 @@ class BaardaReliability:
         # Ковариационная матрица неизвестных
         self.Qxx = self.sigma0 ** 2 * N_inv
 
-        # Ковариационная матрица измерений
-        Qll = sparse.diags(1.0 / self.P.diagonal())
+        # Ковариационная матрица измерений: Qll = P⁻¹
+        P_diag = self.P.diagonal()
+        valid_mask = P_diag > 1e-15
+        Qll_diag = np.zeros_like(P_diag)
+        Qll_diag[valid_mask] = 1.0 / P_diag[valid_mask]
+        Qll = sparse.diags(Qll_diag)
 
         # Ковариационная матрица остатков: Qvv = Qll - A · Qxx · A^T
-        A_Qxx_AT = self.A @ self.Qxx @ self.A.T
-        self.Qvv = Qll - A_Qxx_AT
+        # Для экономии памяти вычисляем только диагональные элементы для больших матриц
+        try:
+            # Попытка полного вычисления для небольших матриц
+            if self.A.shape[0] < 1000:
+                A_Qxx_AT = self.A @ self.Qxx @ self.A.T
+                self.Qvv = Qll - A_Qxx_AT
+            else:
+                # Для больших матриц вычисляем только диагональ
+                logger.info("Вычисление полной матрицы Qvv пропущено (слишком большая система)")
+                logger.info("Будут использоваться только диагональные элементы")
+                # Диагональные элементы: q_vv_ii = q_ll_ii - Σ(a_ij² · q_xx_jj)
+                diag_Qvv = Qll_diag.copy()
+                for i in range(self.A.shape[0]):
+                    row = self.A[i].toarray().flatten()
+                    diag_Qvv[i] -= np.sum(row**2 * self.Qxx.diagonal())
+                self.Qvv = sparse.diags(diag_Qvv)
+        except MemoryError:
+            logger.warning("Недостаточно памяти для вычисления полной матрицы Qvv")
+            # Используем только диагональные элементы
+            diag_Qvv = Qll_diag.copy()
+            for i in range(self.A.shape[0]):
+                row = self.A[i].toarray().flatten()
+                diag_Qvv[i] -= np.sum(row**2 * self.Qxx.diagonal())
+            self.Qvv = sparse.diags(diag_Qvv)
 
     def calculate_reliability_numbers(self) -> np.ndarray:
         """

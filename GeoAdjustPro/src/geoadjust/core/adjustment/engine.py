@@ -116,12 +116,31 @@ class AdjustmentEngine:
         try:
             factor = cholesky(self.normal_matrix.tocsc())
             self.solution_vector = factor(U)
+            
+            # Диагностика ранга матрицы
+            try:
+                rank = factor.rank()
+                if rank < self.normal_matrix.shape[0]:
+                    logger.warning(f"Нормальная матрица имеет ранг {rank} "
+                                  f"(ожидалось {self.normal_matrix.shape[0]})")
+                    logger.warning("Возможно, сеть вырождена или имеет недостаточное число измерений")
+            except Exception:
+                pass  # Не критично, если не удалось получить ранг
+        
         except Exception as e:
-            logger.warning(f"Разложение Холецкого не удалось: {e}. Используем псевдообратную матрицу.",
-                           exc_info=True)
-            # Резервный метод для небольших сетей или вырожденных матриц
-            N_dense = self.normal_matrix.toarray()
-            self.solution_vector = np.linalg.pinv(N_dense) @ U
+            logger.error(f"Ошибка при разложении Холецкого: {e}")
+            logger.info("Попытка использования псевдообратной матрицы...")
+            
+            # Резервный метод: псевдообратная матрица
+            try:
+                N_dense = self.normal_matrix.toarray()
+                N_pinv = np.linalg.pinv(N_dense)
+                self.solution_vector = N_pinv @ U
+                
+                logger.warning("Использовано псевдообратное решение (сеть может быть вырождена)")
+            except Exception as e2:
+                logger.error(f"Ошибка при псевдообратном решении: {e2}")
+                raise ValueError(f"Не удалось решить систему нормальных уравнений: {e2}")
 
         return self.solution_vector
 
@@ -157,13 +176,22 @@ class AdjustmentEngine:
 
         # Число измерений
         n = len(self.observations_vector)
-        # Число неизвестных
-        u = self.solution_vector.shape[0]
+        
+        # Фактическое число независимых неизвестных (ранг нормальной матрицы)
+        try:
+            factor = cholesky(self.normal_matrix.tocsc())
+            u_effective = factor.rank()
+        except Exception:
+            # Для плотных матриц используем численный ранг
+            N_dense = self.normal_matrix.toarray()
+            u_effective = np.linalg.matrix_rank(N_dense, tol=1e-10)
+        
         # Степень свободы (избыточность)
-        r = n - u
-
+        r = n - u_effective
+        
         if r <= 0:
-            raise ValueError(f"Недостаточное число избыточных измерений: {r}")
+            raise ValueError(f"Недостаточное число избыточных измерений: {r} "
+                            f"(измерений: {n}, независимых неизвестных: {u_effective})")
 
         # СКО единицы веса
         numerator = self.residuals.T @ self.weight_matrix @ self.residuals
@@ -183,6 +211,9 @@ class AdjustmentEngine:
                                  "Проверьте правильность формирования весовой матрицы.")
 
         self.sigma0 = np.sqrt(numerator / r)
+        
+        logger.info(f"СКО единицы веса: {self.sigma0:.6f} (r={r}, "
+                   f"ранг={u_effective}/{self.solution_vector.shape[0]})")
 
         return self.sigma0
 

@@ -305,19 +305,23 @@ class ToleranceChecker:
         for class_name in ['1_class', '2_class', '3_class', '4_class']:
             if 'stations' in network_data:
                 for station in network_data['stations']:
-                    if 'directions' in station:
-                        result = self.check_circle_closure(
-                            station['directions'],
-                            station.get('sigma_beta', 5.0),
-                            class_name
-                        )
-                        if not result['is_compliant']:
-                            violations.append({
-                                'type': 'circle_closure',
-                                'location': station.get('id', 'unknown'),
-                                'class': class_name,
-                                **result
-                            })
+                    if 'directions' in station and 'receptions' in station:
+                        # Проверка для каждого приема на станции
+                        for reception in station['receptions']:
+                            directions = [obs.value for obs in reception]
+                            result = self.check_circle_closure(
+                                directions,
+                                station.get('sigma_beta', 5.0),
+                                class_name
+                            )
+                            if not result['is_compliant']:
+                                violations.append({
+                                    'type': 'circle_closure',
+                                    'location': station.get('id', 'unknown'),
+                                    'reception': reception.get('id', 'unknown'),
+                                    'class': class_name,
+                                    **result
+                                })
 
         # 7. Расхождение направлений КЛ/КП
         if 'direction_pairs' in network_data:
@@ -380,19 +384,31 @@ class ToleranceChecker:
         for class_name in ['I_class', 'II_class', 'III_class', 'IV_class', 'technical']:
             if 'sections' in network_data:
                 for section in network_data['sections']:
-                    if section.get('class') == class_name or class_name == 'III_class':
-                        result = self.check_leveling_section_closure(
-                            section.get('length_km', 0),
-                            section.get('closure_mm', 0),
-                            class_name
-                        )
-                        if not result['is_compliant']:
-                            violations.append({
-                                'type': 'leveling_closure',
-                                'section_id': section.get('id', 'unknown'),
-                                'class': class_name,
-                                **result
-                            })
+                    result = self.check_leveling_section_closure(
+                        section.get('length_km', 0),
+                        section.get('closure_mm', 0),
+                        class_name
+                    )
+                    if not result['is_compliant']:
+                        violations.append({
+                            'type': 'leveling_section_closure',
+                            'section_id': section.get('id', 'unknown'),
+                            'class': class_name,
+                            **result
+                        })
+
+                    # Проверка длины визирного луча
+                    if 'sight_distances' in section:
+                        for i, distance in enumerate(section['sight_distances']):
+                            result = self.check_sight_distance(distance, class_name)
+                            if not result['is_compliant']:
+                                violations.append({
+                                    'type': 'sight_distance_exceeded',
+                                    'section_id': section.get('id', 'unknown'),
+                                    'stand_index': i,
+                                    'class': class_name,
+                                    **result
+                                })
 
         # 20-24. Длина визирного луча для разных классов
         for class_name in ['I_class', 'II_class', 'III_class', 'IV_class', 'technical']:

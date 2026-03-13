@@ -260,20 +260,35 @@ class EquationsBuilder:
         # Свободный член ℓ = M_изм - M_выч
         # Вычисленное направление из приближённых координат
         computed_azimuth = alpha
-        measured_azimuth = np.deg2rad(obs.value)  # Предполагаем, что значение в градусах
+        
+        # Определение единицы измерения угла
+        angle_unit = getattr(obs, 'angle_unit', 'degrees')  # 'degrees', 'radians', 'gons'
+        
+        # Измеренное направление (конвертация в радианы)
+        measured_value = obs.value
+        
+        if angle_unit == 'degrees':
+            measured_azimuth = np.deg2rad(measured_value)
+        elif angle_unit == 'gons':
+            measured_azimuth = measured_value * np.pi / 200.0
+        elif angle_unit == 'radians':
+            measured_azimuth = measured_value
+        else:
+            # По умолчанию предполагаем градусы
+            measured_azimuth = np.deg2rad(measured_value)
+            self.logger.warning(f"Неизвестная единица измерения угла '{angle_unit}', "
+                              f"используем градусы")
         
         # Приведение к диапазону [0, 2π]
-        while computed_azimuth < 0:
-            computed_azimuth += 2 * np.pi
-        while measured_azimuth < 0:
-            measured_azimuth += 2 * np.pi
+        computed_azimuth = computed_azimuth % (2 * np.pi)
+        measured_azimuth = measured_azimuth % (2 * np.pi)
         
         ell = measured_azimuth - computed_azimuth
         
         # Приведение разности к диапазону [-π, π]
-        while ell > np.pi:
+        if ell > np.pi:
             ell -= 2 * np.pi
-        while ell < -np.pi:
+        elif ell < -np.pi:
             ell += 2 * np.pi
         
         return indices, coeffs, ell
@@ -404,12 +419,22 @@ class EquationsBuilder:
         from_point = points[obs.from_point]
         to_point = points[obs.to_point]
         
-        if from_point.h is not None and to_point.h is not None:
-            computed_diff = to_point.h - from_point.h
-            ell = obs.value - computed_diff
-        else:
-            # Если высоты не заданы, используем только измеренное значение
-            ell = obs.value
+        # Приближенные высоты
+        h_i = from_point.h if from_point.h is not None else 0.0
+        h_j = to_point.h if to_point.h is not None else 0.0
+        
+        # Высоты инструмента и цели (если заданы)
+        instrument_height = getattr(obs, 'instrument_height', 0.0)
+        target_height = getattr(obs, 'target_height', 0.0)
+        
+        # Вычисленное превышение с учётом высот инструмента/цели
+        computed_height_diff = (h_j + target_height) - (h_i + instrument_height)
+        
+        # Измеренное превышение
+        measured_height_diff = obs.value
+        
+        # Свободный член
+        ell = measured_height_diff - computed_height_diff
         
         return indices, coeffs, ell
     

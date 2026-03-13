@@ -186,9 +186,16 @@ class WeightBuilder:
         - Инструментальная погрешность прибора
         - Ошибки центрирования инструмента и цели
         - Длина измеряемой линии
+        
+        Формула влияния ошибок центрирования:
+        ε = (Δ / S) · ρ
+        где:
+        - Δ - ошибка центрирования в метрах
+        - S - расстояние в метрах
+        - ρ - переводной множитель (1 для радиан, 206265 для секунд)
         """
         # Базовая СКО от прибора (перевод из секунд в радианы)
-        sigma_base = instrument.angular_accuracy / 3600.0  # в радианах
+        sigma_base = instrument.angular_accuracy / 3600.0 * (np.pi / 180.0)
         
         # Учёт ошибок центрирования для угловых измерений
         centering_error_mm = np.sqrt(
@@ -201,20 +208,20 @@ class WeightBuilder:
         
         if distance_m is not None and distance_m > 0:
             # Влияние ошибок центрирования на угол (в радианах)
-            # Формула: ε = e / S, где e - ошибка центрирования, S - расстояние
-            centering_influence = (centering_error_mm / 1000.0) / distance_m
+            # Формула: ε = (Δ / S) · ρ, где ρ = 1 для радиан
+            # Δ - ошибка центрирования в метрах, S - расстояние в метрах
+            centering_error_m = centering_error_mm / 1000.0
+            centering_influence = centering_error_m / distance_m
             
-            # Суммарная СКО
-            sigma = np.sqrt(sigma_base**2 + centering_influence**2)
-        else:
-            sigma = sigma_base
+            # Суммарная СКО (квадратичное суммирование)
+            sigma_base = np.sqrt(sigma_base**2 + centering_influence**2)
         
         self.logger.debug(
             f"Угловое измерение {obs.obs_id}: "
-            f"σ_base={sigma_base*206265:.2f}\", σ_total={sigma*206265:.2f}\""
+            f"σ_base={sigma_base*206265:.2f}\", σ_total={sigma_base*206265:.2f}\""
         )
         
-        return sigma
+        return sigma_base
     
     def _calculate_distance_sigma(
         self,
@@ -225,22 +232,50 @@ class WeightBuilder:
         """
         Расчёт СКО линейного измерения.
         
-        Используется формула прибора: σ = a + b·D, где:
+        Используется формула: σ = √(a² + (b·D)²), где:
         - a - постоянная составляющая (мм)
-        - b - коэффициент, зависящий от длины (мм/км)
+        - b - пропорциональная ошибка (мм/км)
         - D - длина линии (км)
-        """
-        distance_km = obs.value / 1000.0  # Перевод в км
         
-        # Расчёт СКО по формуле прибора
-        sigma_mm = instrument.calculate_distance_sigma(distance_km)
+        Также учитываются атмосферные условия (если заданы).
+        """
+        # Расстояние между пунктами
+        distance_m = self._get_distance(obs, points)
+        if distance_m is None:
+            distance_m = obs.value if hasattr(obs, 'value') else 100.0
+        
+        distance_km = distance_m / 1000.0
+        
+        # Базовая точность из паспорта прибора
+        # σ = a + b·D, где a - постоянная составляющая (мм), b - пропорциональная (мм/км)
+        a = getattr(instrument, 'distance_accuracy_a', 2.0)  # мм
+        b = getattr(instrument, 'distance_accuracy_b', 2.0)  # мм/км
+        
+        # СКО линейного измерения (мм)
+        sigma_mm = np.sqrt(a**2 + (b * distance_km)**2)
+        
+        # Учёт атмосферных условий (если заданы)
+        temperature = getattr(obs, 'temperature', None)
+        pressure = getattr(obs, 'pressure', None)
+        
+        if temperature is not None and pressure is not None:
+            # Поправка на отклонение от стандартных условий
+            temperature_default = getattr(instrument, 'temperature_default', 20.0)
+            pressure_default = getattr(instrument, 'pressure_default', 1013.25)
+            
+            delta_t = abs(temperature - temperature_default)
+            delta_p = abs(pressure - pressure_default)
+            
+            # Коэффициент влияния (упрощённая модель)
+            atmospheric_factor = 1.0 + 0.01 * (delta_t / 10.0 + delta_p / 50.0)
+            sigma_mm *= atmospheric_factor
         
         # Перевод в метры
         sigma_m = sigma_mm / 1000.0
         
         self.logger.debug(
             f"Линейное измерение {obs.obs_id}: "
-            f"D={obs.value:.3f}м, σ={sigma_m*1000:.2f}мм"
+            f"D={distance_m:.3f}м, σ={sigma_m*1000:.2f}мм"
         )
         
         return sigma_m

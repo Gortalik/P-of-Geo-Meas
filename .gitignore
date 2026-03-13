@@ -4,37 +4,52 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
-
-# Build and distribution artifacts
-dist/
+.Python
 build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
 *.egg-info/
-
-# Virtual environments
-venv/
+.installed.cfg
+*.egg
 .venv/
+venv/
 env/
-.ENV/
-
-# Dependencies cache
-.pip/
-.mypy_cache/
-.pytest_cache/
-.coverage
-coverage/
+ENV/
 
 # Logs
 *.log
 
-# Temporary files
+# Environment
+.env
+.env.local
+*.env.*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
 *.tmp
-*.temp
-*~
+
+# OS
 .DS_Store
 Thumbs.db
 
-# Environment variables
-.env
-.env.local
-.env.*
+# Coverage
+.coverage
+coverage/
+htmlcov/
+
+# Testing
+.pytest_cache/
+.mypy_cache/
 ```

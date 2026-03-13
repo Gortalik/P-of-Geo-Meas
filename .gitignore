@@ -27,7 +27,7 @@ venv/
 env/
 ENV/
 
-# IDE
+# IDE and editor files
 .vscode/
 .idea/
 *.swp
@@ -36,7 +36,7 @@ ENV/
 # Logs
 *.log
 
-# OS
+# OS generated files
 .DS_Store
 Thumbs.db
 

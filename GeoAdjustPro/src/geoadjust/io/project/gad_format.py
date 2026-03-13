@@ -54,7 +54,8 @@ class GADProject:
     
     def create_structure(self):
         """Создание структуры папки проекта"""
-        # Создание основных директорий
+        # Создание основных директорий (с parent=True для создания родительской директории)
+        self.project_dir.mkdir(parents=True, exist_ok=True)
         (self.project_dir / "settings").mkdir(exist_ok=True)
         (self.project_dir / "data").mkdir(exist_ok=True)
         (self.project_dir / "results").mkdir(exist_ok=True)
@@ -181,6 +182,8 @@ class GADProject:
     
     def _save_data(self):
         """Сохранение данных проекта"""
+        import json
+        
         # Сохранение пунктов
         with open(self.project_dir / "data" / "points.json", 'w', encoding='utf-8') as f:
             json.dump(self.data['points'], f, indent=2, ensure_ascii=False)
@@ -192,6 +195,57 @@ class GADProject:
         # Сохранение ходов
         with open(self.project_dir / "data" / "traverses.json", 'w', encoding='utf-8') as f:
             json.dump(self.data['traverses'], f, indent=2, ensure_ascii=False)
+        
+        # Сохранение результатов уравнивания
+        self._save_adjustment_results()
+    
+    def _save_adjustment_results(self):
+        """Сохранение результатов уравнивания"""
+        if not self.results or 'adjustment' not in self.results:
+            logger.debug("Результаты уравнивания отсутствуют")
+            return
+        
+        results_dir = self.project_dir / "results"
+        results_dir.mkdir(exist_ok=True)
+        
+        adjustment = self.results['adjustment']
+        
+        # Сохранение уравненных координат
+        if 'adjusted_points' in adjustment:
+            with open(results_dir / "adjusted_points.json", 'w', encoding='utf-8') as f:
+                json.dump(adjustment['adjusted_points'], f, indent=2, ensure_ascii=False)
+        
+        # Сохранение поправок
+        if 'residuals' in adjustment:
+            with open(results_dir / "residuals.json", 'w', encoding='utf-8') as f:
+                json.dump(adjustment['residuals'], f, indent=2, ensure_ascii=False)
+        
+        # Сохранение точностных характеристик
+        if 'accuracy' in adjustment:
+            with open(results_dir / "accuracy.json", 'w', encoding='utf-8') as f:
+                json.dump(adjustment['accuracy'], f, indent=2, ensure_ascii=False)
+        
+        # Сохранение ковариационной матрицы (если есть)
+        if 'covariance_matrix' in adjustment:
+            # Для больших матриц используем бинарный формат
+            import numpy as np
+            cov_matrix = adjustment['covariance_matrix']
+            if isinstance(cov_matrix, (list, np.ndarray)):
+                np.save(results_dir / "covariance_matrix.npy", cov_matrix)
+        
+        # Сохранение метаданных уравнивания
+        adjustment_meta = {
+            'timestamp': datetime.now().isoformat(),
+            'sigma0': adjustment.get('sigma0', None),
+            'degrees_of_freedom': adjustment.get('degrees_of_freedom', None),
+            'iterations': adjustment.get('iterations', 0),
+            'method': adjustment.get('method', 'classic_mnk'),
+            'converged': adjustment.get('converged', True)
+        }
+        with open(results_dir / "adjustment_meta.json", 'w', encoding='utf-8') as f:
+            json.dump(adjustment_meta, f, indent=2, ensure_ascii=False)
+        
+        logger.info(f"Результаты уравнивания сохранены в {results_dir}")
     
     @classmethod
     def load(cls, project_path: Path) -> 'GADProject':
@@ -285,6 +339,58 @@ class GADProject:
         if traverses_file.exists():
             with open(traverses_file, 'r', encoding='utf-8') as f:
                 self.data['traverses'] = json.load(f)
+        
+        # Загрузка результатов уравнивания
+        self._load_adjustment_results()
+    
+    def _load_adjustment_results(self):
+        """Загрузка результатов уравнивания из проекта"""
+        results_dir = self.project_dir / "results"
+        
+        if not results_dir.exists():
+            logger.debug("Директория результатов отсутствует")
+            return
+        
+        self.results['adjustment'] = {}
+        adjustment = self.results['adjustment']
+        
+        # Загрузка уравненных координат
+        adjusted_points_file = results_dir / "adjusted_points.json"
+        if adjusted_points_file.exists():
+            with open(adjusted_points_file, 'r', encoding='utf-8') as f:
+                adjustment['adjusted_points'] = json.load(f)
+        
+        # Загрузка поправок
+        residuals_file = results_dir / "residuals.json"
+        if residuals_file.exists():
+            with open(residuals_file, 'r', encoding='utf-8') as f:
+                adjustment['residuals'] = json.load(f)
+        
+        # Загрузка точностных характеристик
+        accuracy_file = results_dir / "accuracy.json"
+        if accuracy_file.exists():
+            with open(accuracy_file, 'r', encoding='utf-8') as f:
+                adjustment['accuracy'] = json.load(f)
+        
+        # Загрузка ковариационной матрицы
+        cov_matrix_file = results_dir / "covariance_matrix.npy"
+        if cov_matrix_file.exists():
+            import numpy as np
+            adjustment['covariance_matrix'] = np.load(cov_matrix_file)
+        
+        # Загрузка метаданных уравнивания
+        meta_file = results_dir / "adjustment_meta.json"
+        if meta_file.exists():
+            with open(meta_file, 'r', encoding='utf-8') as f:
+                meta = json.load(f)
+                adjustment['sigma0'] = meta.get('sigma0')
+                adjustment['degrees_of_freedom'] = meta.get('degrees_of_freedom')
+                adjustment['iterations'] = meta.get('iterations', 0)
+                adjustment['method'] = meta.get('method', 'classic_mnk')
+                adjustment['converged'] = meta.get('converged', True)
+                adjustment['timestamp'] = meta.get('timestamp')
+        
+        logger.info("Результаты уравнивания загружены")
     
     def add_point(self, point_data: Dict[str, Any]):
         """Добавление пункта"""
@@ -311,3 +417,37 @@ class GADProject:
     def get_tolerances(self) -> Dict[str, Any]:
         """Получение настроек допусков"""
         return self.settings.get('tolerances', {})
+    
+    def save_adjustment_result(self, result: Dict[str, Any]):
+        """Сохранение результата уравнивания в проект
+        
+        Args:
+            result: Словарь с результатами уравнивания, содержащий:
+                - adjusted_points: уравненные координаты пунктов
+                - residuals: поправки к измерениям
+                - accuracy: точностные характеристики
+                - sigma0: СКО единицы веса
+                - covariance_matrix: ковариационная матрица (опционально)
+                - degrees_of_freedom: число степеней свободы
+                - iterations: количество итераций
+                - converged: флаг сходимости
+                - method: метод уравнивания
+        """
+        if 'adjustment' not in self.results:
+            self.results['adjustment'] = {}
+        
+        # Копирование результатов
+        self.results['adjustment'].update(result)
+        
+        # Сохранение на диск
+        self._save_adjustment_results()
+        
+        logger.info(f"Результаты уравнивания сохранены в проект '{self.name}'")
+    
+    def get_adjustment_result(self) -> Optional[Dict[str, Any]]:
+        """Получение результатов уравнивания из проекта
+        
+        Returns:
+            Словарь с результатами уравнивания или None, если результаты отсутствуют
+        """
+        return self.results.get('adjustment')

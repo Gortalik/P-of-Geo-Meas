@@ -611,21 +611,34 @@ class ProjectPropertiesDialog(QDialog):
         if self.project is None:
             return
         
-        # Загрузка метаданных
-        self.name_edit.setText(self.project.metadata.name)
-        self.org_edit.setText(self.project.metadata.organization)
-        self.author_edit.setText(self.project.metadata.author)
-        self.desc_edit.setText(self.project.metadata.description)
+        # Загрузка метаданных из project_card
+        project_card = self.project.settings.get('project_card', {})
+        self.name_edit.setText(project_card.get('name', self.project.name))
+        self.org_edit.setText(project_card.get('organization', ''))
+        self.author_edit.setText(project_card.get('author', ''))
+        self.desc_edit.setPlainText(project_card.get('description', ''))
         
         # Загрузка настроек СК
-        crs_settings = self.project.get_settings("crs")
+        crs_settings = self.project.settings.get('crs', {})
         if crs_settings:
+            # Установка базовой СК
+            base_crs = crs_settings.get('base_crs', 'SK42')
+            crs_map = {
+                'SK42': 0,  # СК-42
+                'SK95': 1,  # СК-95
+                'GSK2011': 2,  # ГСК-2011
+                'MSK': 3,  # МСК
+                'WGS84': 4  # WGS-84
+            }
+            self.crs_combo.setCurrentIndex(crs_map.get(base_crs, 0))
+            
             self.zone_spin.setValue(crs_settings.get("zone", 7))
             self.central_meridian_edit.setText(str(crs_settings.get("central_meridian", 39.0)))
             self.false_easting_spin.setValue(crs_settings.get("false_easting", 7500000.0))
+            self.scale_factor_spin.setValue(crs_settings.get("scale_factor", 1.0))
         
         # Загрузка инструментов
-        instruments_settings = self.project.get_settings("instruments")
+        instruments_settings = self.project.settings.get('instruments', {})
         if instruments_settings and "instruments" in instruments_settings:
             for instr in instruments_settings["instruments"]:
                 item = QTreeWidgetItem([
@@ -636,30 +649,59 @@ class ProjectPropertiesDialog(QDialog):
                     f"{instr.get('distance_accuracy_a', 0)}+{instr.get('distance_accuracy_b', 0)}ppm"
                 ])
                 self.instruments_table.addTopLevelItem(item)
+        
+        # Загрузка допусков
+        tolerances = self.project.settings.get('tolerances', {})
+        if tolerances:
+            self.max_angle_tolerance_spin.setValue(tolerances.get('angle_tolerance', 3.0))
+            rel_tol = tolerances.get('distance_relative_tolerance', 1e-5)
+            self.max_relative_tolerance_edit.setText(f"1/{int(1/rel_tol)}")
     
     def _apply_changes(self):
         """Применение изменений"""
         if self.project is None:
             return
         
-        # Сохранение метаданных
-        self.project.metadata.name = self.name_edit.text()
-        self.project.metadata.organization = self.org_edit.text()
-        self.project.metadata.author = self.author_edit.text()
-        self.project.metadata.description = self.desc_edit.toPlainText()
+        # Сохранение карточки проекта
+        project_card = {
+            'name': self.name_edit.text(),
+            'organization': self.org_edit.text(),
+            'author': self.author_edit.text(),
+            'description': self.desc_edit.toPlainText()
+        }
+        self.project.settings['project_card'] = project_card
         
         # Сохранение настроек СК
+        crs_map = ['SK42', 'SK95', 'GSK2011', 'MSK', 'WGS84']
         crs_settings = {
-            "base_crs": self.crs_combo.currentText(),
+            "base_crs": crs_map[self.crs_combo.currentIndex()],
             "zone": self.zone_spin.value(),
-            "central_meridian": float(self.central_meridian_edit.text()),
+            "central_meridian": float(self.central_meridian_edit.text() or 39.0),
             "false_easting": self.false_easting_spin.value(),
-            "scale_factor": self.scale_factor_spin.value()
+            "scale_factor": self.scale_factor_spin.value(),
+            "height_system": self.height_system_combo.currentText()
         }
-        self.project.save_settings("crs", crs_settings)
+        self.project.settings['crs'] = crs_settings
         
-        # Обновление XML-файла проекта
-        self.project._create_project_xml()
+        # Сохранение допусков
+        rel_tol_text = self.max_relative_tolerance_edit.text()
+        try:
+            if '/' in rel_tol_text:
+                rel_tol = 1.0 / float(rel_tol_text.split('/')[1])
+            else:
+                rel_tol = float(rel_tol_text)
+        except (ValueError, ZeroDivisionError):
+            rel_tol = 1e-5
+        
+        tolerances = {
+            'angle_tolerance': self.max_angle_tolerance_spin.value(),
+            'distance_relative_tolerance': rel_tol,
+            'coordinate_tolerance': 0.01
+        }
+        self.project.settings['tolerances'] = tolerances
+        
+        # Сохранение проекта на диск
+        self.project.save()
         
         logger.info("Настройки проекта применены")
     

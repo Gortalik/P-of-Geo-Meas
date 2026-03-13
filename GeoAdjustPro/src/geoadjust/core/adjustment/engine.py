@@ -1,11 +1,19 @@
 import numpy as np
 from scipy import sparse
-from sksparse.cholmod import cholesky
+from scipy.sparse.linalg import splu
 from typing import Tuple, Dict, Any, Optional
 import warnings
 import logging
 
 logger = logging.getLogger(__name__)
+
+# Попытка импорта scikit-sparse для разреженного разложения Холецкого
+try:
+    from sksparse.cholmod import cholesky
+    HAS_SKSPARSE = True
+except ImportError:
+    HAS_SKSPARSE = False
+    logger.warning("scikit-sparse не установлен. Используем резервный метод LU-разложения.")
 
 
 class AdjustmentEngine:
@@ -113,36 +121,51 @@ class AdjustmentEngine:
                            "Проверьте веса измерений и топологию сети.")
 
         # Решение через разложение Холецкого (для разреженных матриц)
-        try:
-            factor = cholesky(self.normal_matrix.tocsc())
-            self.solution_vector = factor(U)
-            
-            # Диагностика ранга матрицы
+        if HAS_SKSPARSE:
             try:
-                rank = factor.rank()
-                if rank < self.normal_matrix.shape[0]:
-                    logger.warning(f"Нормальная матрица имеет ранг {rank} "
-                                  f"(ожидалось {self.normal_matrix.shape[0]})")
-                    logger.warning("Возможно, сеть вырождена или имеет недостаточное число измерений")
-            except Exception:
-                pass  # Не критично, если не удалось получить ранг
-        
-        except Exception as e:
-            logger.error(f"Ошибка при разложении Холецкого: {e}")
-            logger.info("Попытка использования псевдообратной матрицы...")
+                factor = cholesky(self.normal_matrix.tocsc())
+                self.solution_vector = factor(U)
+                
+                # Диагностика ранга матрицы
+                try:
+                    rank = factor.rank()
+                    if rank < self.normal_matrix.shape[0]:
+                        logger.warning(f"Нормальная матрица имеет ранг {rank} "
+                                      f"(ожидалось {self.normal_matrix.shape[0]})")
+                        logger.warning("Возможно, сеть вырождена или имеет недостаточное число измерений")
+                except Exception:
+                    pass  # Не критично, если не удалось получить ранг
             
-            # Резервный метод: псевдообратная матрица
+            except Exception as e:
+                logger.error(f"Ошибка при разложении Холецкого: {e}")
+                logger.info("Попытка использования LU-разложения...")
+                self._solve_with_lu(U)
+        else:
+            # scikit-sparse недоступен, используем LU-разложение
+            self._solve_with_lu(U)
+
+        return self.solution_vector
+    
+    def _solve_with_lu(self, U: np.ndarray):
+        """Резервный метод решения через LU-разложение (scipy.sparse.linalg.splu)"""
+        try:
+            # LU-разложение для разреженных матриц
+            lu = splu(self.normal_matrix.tocsc())
+            self.solution_vector = lu.solve(U.toarray().flatten())
+            logger.info("Решение получено методом LU-разложения")
+        except Exception as e2:
+            logger.error(f"Ошибка при LU-разложении: {e2}")
+            logger.info("Попытка использования псевдообратной матрицы (плотный формат)...")
+            
             try:
                 N_dense = self.normal_matrix.toarray()
                 N_pinv = np.linalg.pinv(N_dense)
                 self.solution_vector = N_pinv @ U
                 
                 logger.warning("Использовано псевдообратное решение (сеть может быть вырождена)")
-            except Exception as e2:
-                logger.error(f"Ошибка при псевдообратном решении: {e2}")
-                raise ValueError(f"Не удалось решить систему нормальных уравнений: {e2}")
-
-        return self.solution_vector
+            except Exception as e3:
+                logger.error(f"Ошибка при псевдообратном решении: {e3}")
+                raise ValueError(f"Не удалось решить систему нормальных уравнений: {e3}")
 
     def calculate_residuals(self) -> np.ndarray:
         """
@@ -178,11 +201,16 @@ class AdjustmentEngine:
         n = len(self.observations_vector)
         
         # Фактическое число независимых неизвестных (ранг нормальной матрицы)
-        try:
-            factor = cholesky(self.normal_matrix.tocsc())
-            u_effective = factor.rank()
-        except Exception:
-            # Для плотных матриц используем численный ранг
+        if HAS_SKSPARSE:
+            try:
+                factor = cholesky(self.normal_matrix.tocsc())
+                u_effective = factor.rank()
+            except Exception:
+                # Для плотных матриц используем численный ранг
+                N_dense = self.normal_matrix.toarray()
+                u_effective = np.linalg.matrix_rank(N_dense, tol=1e-10)
+        else:
+            # Без sksparse используем численный ранг
             N_dense = self.normal_matrix.toarray()
             u_effective = np.linalg.matrix_rank(N_dense, tol=1e-10)
         
@@ -233,11 +261,17 @@ class AdjustmentEngine:
             self.calculate_sigma0()
 
         # Обратная нормальная матрица
-        try:
-            factor = cholesky(self.normal_matrix.tocsc())
-            N_inv = factor.inv()
-        except Exception as e:
-            warnings.warn(f"Используем псевдообратную матрицу: {e}")
+        if HAS_SKSPARSE:
+            try:
+                factor = cholesky(self.normal_matrix.tocsc())
+                N_inv = factor.inv()
+            except Exception as e:
+                warnings.warn(f"Используем псевдообратную матрицу: {e}")
+                N_dense = self.normal_matrix.toarray()
+                N_inv = np.linalg.pinv(N_dense)
+                N_inv = sparse.csr_matrix(N_inv)
+        else:
+            # Без sksparse используем псевдообратную матрицу
             N_dense = self.normal_matrix.toarray()
             N_inv = np.linalg.pinv(N_dense)
             N_inv = sparse.csr_matrix(N_inv)

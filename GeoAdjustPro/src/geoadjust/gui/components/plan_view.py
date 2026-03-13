@@ -24,13 +24,13 @@ class PlanGraphicsView(QGraphicsView):
         self.setScene(self.scene)
         
         # Настройка вида
-        self.setRenderHint(self.renderHints().Antialiasing)
-        self.setViewportUpdateMode(self.SmartViewportUpdate)
-        self.setDragMode(self.RubberBandDrag)
+        self.setRenderHint(QGraphicsView.Antialiasing)
+        self.setViewportUpdateMode(QGraphicsView.SmartViewportUpdate)
+        self.setDragMode(QGraphicsView.RubberBandDrag)
         
         # Масштабирование
-        self.setTransformationAnchor(self.AnchorUnderMouse)
-        self.setResizeAnchor(self.AnchorViewCenter)
+        self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
+        self.setResizeAnchor(QGraphicsView.AnchorViewCenter)
         
         # Фоновый цвет
         self.setBackgroundBrush(QBrush(QColor("#f0f0f0")))

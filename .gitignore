@@ -5,49 +5,40 @@ __pycache__/
 *.pyo
 *.pyd
 .Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
+*.so
 *.egg-info/
-.installed.cfg
-*.egg
-.venv/
+dist/
+build/
+*.dist-info/
+
+# Virtual environments
 venv/
+.venv/
 env/
-ENV/
-
-# Logs
-*.log
-
-# Environment
-.env
-.env.local
-*.env.*
+.ENV/
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-*.tmp
+
+# Logs
+*.log
+
+# Coverage
+.coverage
+htmlcov/
+coverage/
+
+# Environment
+.env
+.env.local
+*.env.*
 
 # OS
 .DS_Store
 Thumbs.db
-
-# Coverage
-.coverage
-coverage/
-htmlcov/
 
 # Testing
 .pytest_cache/

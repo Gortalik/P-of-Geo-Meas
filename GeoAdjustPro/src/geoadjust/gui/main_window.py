@@ -279,7 +279,7 @@ class MainWindow(QMainWindow):
         quick_access.add_action("Отменить", None)
         quick_access.add_action("Повторить", None)
         
-        self.addToolBar(Qt.TopToolBarArea, self.ribbon)
+        # Ribbon widget уже является QTabWidget и добавляется в центральною область
     
     def _create_classic_toolbars(self):
         """Создание классических тулбаров"""

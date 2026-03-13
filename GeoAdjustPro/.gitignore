@@ -1,0 +1,20 @@
+# Compiled Python files
+*.pyc
+*.pyo
+*.pyd
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Dependencies
+.venv/
+env/
+ENV/
+.DS_Store
+Thumbs.db
+
+# Logs and temporary files
+*.log
+*.tmp
+
+# Environment variables
+.env

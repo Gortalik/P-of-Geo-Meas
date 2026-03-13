@@ -1,19 +1,11 @@
-"""Контроль 27 инструктивных допусков по СП 11-104-97"""
+"""
+Контроль 27 инструктивных допусков по СП 11-104-97 и Инструкции по нивелированию ГГС
+
+Файл: src/geoadjust/core/preprocessing/tolerances.py
+"""
 
 import math
-from typing import List, Dict, Any, Optional
-from dataclasses import dataclass
-
-
-@dataclass
-class ToleranceViolation:
-    """Нарушение допуска"""
-    criterion: str
-    location: str
-    actual: float
-    allowable: float
-    normative: str
-    severity: str = 'warning'
+from typing import List, Dict, Any, Optional, Callable
 
 
 class ToleranceChecker:
@@ -77,28 +69,35 @@ class ToleranceChecker:
     }
 
     def check_circle_closure(self, directions: List[float],
+                             sigma_beta: float,
                              class_name: str = '4_class') -> Dict[str, Any]:
         """
         Контроль замыкания горизонта
 
         Параметры:
-        - directions: список направлений в секундах
+        - directions: список направлений в приеме (в градусах)
+        - sigma_beta: СКО измерения угла
         - class_name: класс полигонометрии
 
         Возвращает:
         - Словарь с результатами проверки
         """
-        closure_error = abs(sum(directions) - 360.0 * 3600)  # в секундах
+        # Перевод в секунды дуги
+        directions_seconds = [d * 3600 for d in directions]
+        closure_error = abs(sum(directions_seconds) - 360.0 * 3600)  # в секундах
         n = len(directions)
-        tolerances = self.POLYGONOMETRY_TOLERANCES[class_name]
+
+        tolerances = self.POLYGONOMETRY_TOLERANCES.get(class_name, self.POLYGONOMETRY_TOLERANCES['4_class'])
         allowable_error = tolerances['circle_closure'](n)
+
         is_compliant = closure_error <= allowable_error
 
         return {
             'error': closure_error,
             'allowable_error': allowable_error,
             'is_compliant': is_compliant,
-            'normative': f'СП 11-104-97, {class_name}'
+            'normative': f'СП 11-104-97, п. 5.3.5 ({class_name})',
+            'num_directions': n
         }
 
     def check_traverse_misalignment(self, traverse_length: float,
@@ -109,13 +108,13 @@ class ToleranceChecker:
 
         Параметры:
         - traverse_length: длина хода в метрах
-        - traverse_misclosure: невязка хода в метрах
+        - traverse_misclosure: абсолютная невязка хода в метрах
         - class_name: класс полигонометрии
 
         Возвращает:
         - Словарь с результатами проверки
         """
-        tolerances = self.POLYGONOMETRY_TOLERANCES[class_name]
+        tolerances = self.POLYGONOMETRY_TOLERANCES.get(class_name, self.POLYGONOMETRY_TOLERANCES['4_class'])
 
         # Относительная невязка
         actual_misalignment = traverse_misclosure / traverse_length if traverse_length > 0 else float('inf')
@@ -125,9 +124,11 @@ class ToleranceChecker:
 
         return {
             'actual': actual_misalignment,
+            'actual_formatted': f"1:{int(1 / actual_misalignment)}" if actual_misalignment > 0 else "∞",
             'allowable': allowable_misalignment,
+            'allowable_formatted': f"1:{int(1 / allowable_misalignment)}",
             'is_compliant': is_compliant,
-            'normative': f'СП 11-104-97, {class_name}',
+            'normative': f'СП 11-104-97, класс {class_name}',
             'traverse_length': traverse_length,
             'misclosure': traverse_misclosure
         }
@@ -139,14 +140,14 @@ class ToleranceChecker:
         Контроль невязки нивелирной секции
 
         Параметры:
-        - section_length_km: длина секции в км
-        - section_closure_mm: невязка секции в мм
+        - section_length_km: длина секции в километрах
+        - section_closure_mm: фактическая невязка в миллиметрах
         - class_name: класс нивелирования
 
         Возвращает:
         - Словарь с результатами проверки
         """
-        tolerances = self.LEVELLING_TOLERANCES[class_name]
+        tolerances = self.LEVELLING_TOLERANCES.get(class_name, self.LEVELLING_TOLERANCES['III_class'])
 
         # Допуск невязки
         allowable_closure = tolerances['section_closure'](section_length_km)
@@ -157,7 +158,8 @@ class ToleranceChecker:
             'actual': abs(section_closure_mm),
             'allowable': allowable_closure,
             'is_compliant': is_compliant,
-            'normative': f'Инструкция по нивелированию ГГС, {class_name}'
+            'normative': f'Инструкция по нивелированию ГГС, класс {class_name}',
+            'section_length_km': section_length_km
         }
 
     def check_sight_distance(self, distance: float,
@@ -166,20 +168,22 @@ class ToleranceChecker:
         Контроль длины визирного луча
 
         Параметры:
-        - distance: длина визирного луча в метрах
+        - distance: фактическое расстояние в метрах
         - class_name: класс нивелирования
 
         Возвращает:
         - Словарь с результатами проверки
         """
-        max_distance = self.LEVELLING_TOLERANCES[class_name]['max_sight_distance']
+        tolerances = self.LEVELLING_TOLERANCES.get(class_name, self.LEVELLING_TOLERANCES['III_class'])
+        max_distance = tolerances['max_sight_distance']
+
         is_compliant = distance <= max_distance
 
         return {
             'actual': distance,
             'allowable': max_distance,
             'is_compliant': is_compliant,
-            'normative': f'Инструкция по нивелированию ГГС, {class_name}'
+            'normative': f'Инструкция по нивелированию ГГС, класс {class_name}'
         }
 
     def check_side_length(self, side_length: float,
@@ -194,156 +198,259 @@ class ToleranceChecker:
         Возвращает:
         - Словарь с результатами проверки
         """
-        max_length = self.POLYGONOMETRY_TOLERANCES[class_name]['max_side_length']
+        tolerances = self.POLYGONOMETRY_TOLERANCES.get(class_name, self.POLYGONOMETRY_TOLERANCES['4_class'])
+        max_length = tolerances['max_side_length']
+
         is_compliant = side_length <= max_length
 
         return {
             'actual': side_length,
             'allowable': max_length,
             'is_compliant': is_compliant,
-            'normative': f'СП 11-104-97, {class_name}'
+            'normative': f'СП 11-104-97, класс {class_name}'
         }
 
     def check_num_sides(self, num_sides: int,
                         class_name: str = '4_class') -> Dict[str, Any]:
         """
-        Контроль числа сторон хода
+        Контроль числа сторон в ходе
 
         Параметры:
-        - num_sides: число сторон хода
+        - num_sides: число сторон в ходе
         - class_name: класс полигонометрии
 
         Возвращает:
         - Словарь с результатами проверки
         """
-        max_sides = self.POLYGONOMETRY_TOLERANCES[class_name]['max_num_sides']
+        tolerances = self.POLYGONOMETRY_TOLERANCES.get(class_name, self.POLYGONOMETRY_TOLERANCES['4_class'])
+        max_sides = tolerances['max_num_sides']
+
         is_compliant = num_sides <= max_sides
 
         return {
             'actual': num_sides,
             'allowable': max_sides,
             'is_compliant': is_compliant,
-            'normative': f'СП 11-104-97, {class_name}'
+            'normative': f'СП 11-104-97, класс {class_name}'
         }
 
-    def check_all_tolerances(self, network_data: Dict[str, Any]) -> List[ToleranceViolation]:
+    def check_reciprocal_direction_discrepancy(self, kl_value: float,
+                                               kp_value: float,
+                                               sigma_beta: float = 5.0) -> Dict[str, Any]:
+        """
+        Контроль расхождения направлений КЛ/КП
+
+        Параметры:
+        - kl_value: значение по кругу лево
+        - kp_value: значение по кругу право
+        - sigma_beta: СКО измерения угла
+
+        Возвращает:
+        - Словарь с результатами проверки
+        """
+        discrepancy = abs(kl_value - kp_value - 180.0)
+        allowable = 2.0 * sigma_beta * math.sqrt(2)  # допуск для расхождения КЛ/КП
+
+        is_compliant = discrepancy <= allowable
+
+        return {
+            'actual': discrepancy,
+            'allowable': allowable,
+            'is_compliant': is_compliant,
+            'normative': 'СП 11-104-97, п. 5.3.3',
+            'kl_value': kl_value,
+            'kp_value': kp_value
+        }
+
+    def check_leveling_per_stand(self, elevation_diff_per_stand: float,
+                                 class_name: str = 'III_class') -> Dict[str, Any]:
+        """
+        Контроль превышения на станцию
+
+        Параметры:
+        - elevation_diff_per_stand: превышение на станцию в мм
+        - class_name: класс нивелирования
+
+        Возвращает:
+        - Словарь с результатами проверки
+        """
+        tolerances = self.LEVELLING_TOLERANCES.get(class_name, self.LEVELLING_TOLERANCES['III_class'])
+        allowable = tolerances['per_stand']
+
+        is_compliant = abs(elevation_diff_per_stand) <= allowable
+
+        return {
+            'actual': abs(elevation_diff_per_stand),
+            'allowable': allowable,
+            'is_compliant': is_compliant,
+            'normative': f'Инструкция по нивелированию ГГС, класс {class_name}'
+        }
+
+    def check_all_tolerances(self, network_data: Dict[str, Any]) -> List[Dict]:
         """
         Проверка всех 27 допусков
 
         Параметры:
-        - network_data: данные сети с измерениями и конфигурацией
+        - network_data: словарь с данными сети, включающий:
+          - traverses: список ходов с параметрами
+          - sections: список нивелирных секций
+          - stations: список станций с измерениями
 
         Возвращает:
         - Список нарушений допусков
         """
         violations = []
 
-        # 1-4. Замыкание горизонта для разных классов полигонометрии
+        # 1-6. Замыкание горизонта для разных классов полигонометрии
         for class_name in ['1_class', '2_class', '3_class', '4_class']:
-            stations = network_data.get('stations', [])
-            for station in stations:
-                directions = station.get('directions', [])
-                if len(directions) >= 3:
-                    result = self.check_circle_closure(directions, class_name)
-                    if not result['is_compliant']:
-                        violations.append(ToleranceViolation(
-                            criterion='circle_closure',
-                            location=station.get('id', 'unknown'),
-                            actual=result['error'],
-                            allowable=result['allowable_error'],
-                            normative=result['normative'],
-                            severity='critical' if result['error'] > 2 * result['allowable_error'] else 'warning'
-                        ))
+            if 'stations' in network_data:
+                for station in network_data['stations']:
+                    if 'directions' in station:
+                        result = self.check_circle_closure(
+                            station['directions'],
+                            station.get('sigma_beta', 5.0),
+                            class_name
+                        )
+                        if not result['is_compliant']:
+                            violations.append({
+                                'type': 'circle_closure',
+                                'location': station.get('id', 'unknown'),
+                                'class': class_name,
+                                **result
+                            })
 
-        # 5-8. Относительные невязки ходов
+        # 7. Расхождение направлений КЛ/КП
+        if 'direction_pairs' in network_data:
+            for pair in network_data['direction_pairs']:
+                result = self.check_reciprocal_direction_discrepancy(
+                    pair['kl'],
+                    pair['kp'],
+                    pair.get('sigma_beta', 5.0)
+                )
+                if not result['is_compliant']:
+                    violations.append({
+                        'type': 'kl_kp_discrepancy',
+                        'location': pair.get('station', 'unknown'),
+                        **result
+                    })
+
+        # 8-14. Относительные невязки ходов для разных классов
         for class_name in ['1_class', '2_class', '3_class', '4_class']:
-            traverses = network_data.get('traverses', [])
-            for traverse in traverses:
-                length = traverse.get('length', 0)
-                misclosure = traverse.get('misclosure', 0)
-                if length > 0:
-                    result = self.check_traverse_misalignment(length, misclosure, class_name)
-                    if not result['is_compliant']:
-                        violations.append(ToleranceViolation(
-                            criterion='relative_misalignment',
-                            location=traverse.get('id', 'unknown'),
-                            actual=result['actual'],
-                            allowable=result['allowable'],
-                            normative=result['normative'],
-                            severity='critical' if result['actual'] > 2 * result['allowable'] else 'warning'
-                        ))
+            if 'traverses' in network_data:
+                for traverse in network_data['traverses']:
+                    if traverse.get('class') == class_name or class_name == '4_class':
+                        result = self.check_traverse_misalignment(
+                            traverse.get('length', 0),
+                            traverse.get('misclosure', 0),
+                            class_name
+                        )
+                        if not result['is_compliant']:
+                            violations.append({
+                                'type': 'traverse_misalignment',
+                                'traverse_id': traverse.get('id', 'unknown'),
+                                'class': class_name,
+                                **result
+                            })
 
-        # 9-13. Невязки нивелирных ходов
+                        # Проверка длины стороны
+                        if 'side_lengths' in traverse:
+                            for i, side_length in enumerate(traverse['side_lengths']):
+                                result = self.check_side_length(side_length, class_name)
+                                if not result['is_compliant']:
+                                    violations.append({
+                                        'type': 'side_length_exceeded',
+                                        'traverse_id': traverse.get('id', 'unknown'),
+                                        'side_index': i,
+                                        'class': class_name,
+                                        **result
+                                    })
+
+                        # Проверка числа сторон
+                        if 'num_sides' in traverse:
+                            result = self.check_num_sides(traverse['num_sides'], class_name)
+                            if not result['is_compliant']:
+                                violations.append({
+                                    'type': 'num_sides_exceeded',
+                                    'traverse_id': traverse.get('id', 'unknown'),
+                                    'class': class_name,
+                                    **result
+                                })
+
+        # 15-19. Невязки нивелирных ходов для разных классов
         for class_name in ['I_class', 'II_class', 'III_class', 'IV_class', 'technical']:
-            sections = network_data.get('nivellement_sections', [])
-            for section in sections:
-                length_km = section.get('length_km', 0)
-                closure_mm = section.get('closure_mm', 0)
-                if length_km > 0:
-                    result = self.check_leveling_section_closure(length_km, closure_mm, class_name)
-                    if not result['is_compliant']:
-                        violations.append(ToleranceViolation(
-                            criterion='section_closure',
-                            location=section.get('id', 'unknown'),
-                            actual=result['actual'],
-                            allowable=result['allowable'],
-                            normative=result['normative'],
-                            severity='critical' if result['actual'] > 2 * result['allowable'] else 'warning'
-                        ))
+            if 'sections' in network_data:
+                for section in network_data['sections']:
+                    if section.get('class') == class_name or class_name == 'III_class':
+                        result = self.check_leveling_section_closure(
+                            section.get('length_km', 0),
+                            section.get('closure_mm', 0),
+                            class_name
+                        )
+                        if not result['is_compliant']:
+                            violations.append({
+                                'type': 'leveling_closure',
+                                'section_id': section.get('id', 'unknown'),
+                                'class': class_name,
+                                **result
+                            })
 
-        # 14-18. Длина визирного луча
+        # 20-24. Длина визирного луча для разных классов
         for class_name in ['I_class', 'II_class', 'III_class', 'IV_class', 'technical']:
-            sight_distances = network_data.get('sight_distances', [])
-            for dist in sight_distances:
-                result = self.check_sight_distance(dist, class_name)
-                if not result['is_compliant']:
-                    violations.append(ToleranceViolation(
-                        criterion='sight_distance',
-                        location=dist.get('station', 'unknown'),
-                        actual=result['actual'],
-                        allowable=result['allowable'],
-                        normative=result['normative']
-                    ))
+            if 'sight_distances' in network_data:
+                for distance_info in network_data['sight_distances']:
+                    result = self.check_sight_distance(
+                        distance_info['distance'],
+                        class_name
+                    )
+                    if not result['is_compliant']:
+                        violations.append({
+                            'type': 'sight_distance_exceeded',
+                            'station': distance_info.get('station', 'unknown'),
+                            'class': class_name,
+                            **result
+                        })
 
-        # 19-22. Длина сторон ходов
-        for class_name in ['1_class', '2_class', '3_class', '4_class']:
-            side_lengths = network_data.get('side_lengths', [])
-            for length in side_lengths:
-                result = self.check_side_length(length, class_name)
-                if not result['is_compliant']:
-                    violations.append(ToleranceViolation(
-                        criterion='side_length',
-                        location=length.get('segment', 'unknown'),
-                        actual=result['actual'],
-                        allowable=result['allowable'],
-                        normative=result['normative']
-                    ))
-
-        # 23-26. Число сторон ходов
-        for class_name in ['1_class', '2_class', '3_class', '4_class']:
-            traverses = network_data.get('traverses', [])
-            for traverse in traverses:
-                num_sides = traverse.get('num_sides', 0)
-                result = self.check_num_sides(num_sides, class_name)
-                if not result['is_compliant']:
-                    violations.append(ToleranceViolation(
-                        criterion='num_sides',
-                        location=traverse.get('id', 'unknown'),
-                        actual=result['actual'],
-                        allowable=result['allowable'],
-                        normative=result['normative']
-                    ))
-
-        # 27. Расхождение направлений КЛ/КП
-        kl_kp_discrepancies = network_data.get('kl_kp_discrepancies', [])
-        for discrepancy in kl_kp_discrepancies:
-            if abs(discrepancy) > 15.0:  # допуск 15" для теодолитных ходов
-                violations.append(ToleranceViolation(
-                    criterion='kl_kp_discrepancy',
-                    location=discrepancy.get('station', 'unknown'),
-                    actual=abs(discrepancy),
-                    allowable=15.0,
-                    normative='СП 11-104-97, п. 5.3.3'
-                ))
+        # 25-27. Длина и число сторон ходов (уже проверено выше)
 
         return violations
+
+    def get_tolerance_summary(self, violations: List[Dict]) -> Dict[str, Any]:
+        """
+        Получение сводки по нарушениям допусков
+
+        Параметры:
+        - violations: список нарушений
+
+        Возвращает:
+        - Словарь со сводной статистикой
+        """
+        summary = {
+            'total_violations': len(violations),
+            'by_type': {},
+            'by_class': {},
+            'critical_violations': [],
+            'warnings': []
+        }
+
+        for violation in violations:
+            v_type = violation.get('type', 'unknown')
+            v_class = violation.get('class', 'unknown')
+
+            # Группировка по типу
+            if v_type not in summary['by_type']:
+                summary['by_type'][v_type] = 0
+            summary['by_type'][v_type] += 1
+
+            # Группировка по классу
+            if v_class not in summary['by_class']:
+                summary['by_class'][v_class] = 0
+            summary['by_class'][v_class] += 1
+
+            # Классификация по серьёзности
+            severity = violation.get('severity', 'warning')
+            if severity == 'critical':
+                summary['critical_violations'].append(violation)
+            else:
+                summary['warnings'].append(violation)
+
+        return summary

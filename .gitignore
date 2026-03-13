@@ -1,43 +1,59 @@
 ```
-# Python
-__pycache__/
+# Compiled Python files
 *.pyc
-*.pyo
-*.pyd
-.Python
-*.so
-.coverage
-htmlcov/
-.coverage.*
-.python-version
+__pycache__/
 
-# Virtual environments
-venv/
+# Dependencies
 .venv/
-env/
-ENV/
+venv/
+.env
+.env.local
+.env.*
 
-# Build artifacts
-build/
+# Build/dist directories
 dist/
-*.egg
-*.egg-info/
-.installed.cfg
-*.egg-info
-
-# Testing
-.pytest_cache/
-.mypy_cache/
-.hypothesis/
+build/
+target/
 
 # Logs
 *.log
 
-# OS generated files
+# Editors
+.vscode/
+.idea/
+
+# OS files
 .DS_Store
 Thumbs.db
-ehthumbs.db
-Icon?
-.directory
-*.nfs*
+
+# Testing and coverage
+.coverage
+coverage/
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+
+# Compressed files
+*.zip
+*.gz
+*.tar
+*.tgz
+*.bz2
+*.xz
+*.7z
+*.rar
+*.zst
+*.lz4
+*.lzh
+*.cab
+*.arj
+*.rpm
+*.deb
+*.Z
+*.lz
+*.lzo
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.tar.zst
 ```

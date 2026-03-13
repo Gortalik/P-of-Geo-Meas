@@ -16,22 +16,24 @@ venv/
 env/
 .ENV/
 
-# IDE and editor files
+# Testing
+.coverage
+coverage/
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+
+# Logs
+*.log
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Editor files
 .vscode/
 .idea/
 *.swp
 *.swo
 *.tmp
-
-# Logs
-*.log
-
-# Coverage reports
-.coverage
-htmlcov/
-coverage/
-
-# Miscellaneous
-.DS_Store
-Thumbs.db
 ```

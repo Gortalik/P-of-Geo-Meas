@@ -59,6 +59,9 @@ class MainWindow(QMainWindow):
         self.config = config or MainWindowConfig()
         self.current_project = None
         
+        # Создание интеграции обработки
+        self.processing_integration = None
+        
         # Настройка окна
         self.setWindowTitle(self.config.window_title)
         self.setWindowIcon(QIcon("resources/icons/app_icon.ico"))
@@ -542,49 +545,59 @@ class MainWindow(QMainWindow):
             self.mode_label.setText("Режим: уравнивание")
             self.statusBar().showMessage("Выполняется уравнивание...", 0)
             self.progress_bar.setVisible(True)
-            self.progress_bar.setRange(0, 0)  # Бесконечная прогресс-бар
             
-            from geoadjust.core.adjustment.engine import AdjustmentEngine
-            from geoadjust.core.adjustment.equations_builder import EquationsBuilder
-            from geoadjust.core.adjustment.weight_builder import WeightBuilder
+            # Создание интеграции обработки если ещё не создана
+            if self.processing_integration is None:
+                from geoadjust.gui.processing.integration import ProcessingIntegration
+                self.processing_integration = ProcessingIntegration(self)
+                
+                # Подключение сигналов
+                self.processing_integration.progress_updated.connect(self._on_progress_updated)
+                self.processing_integration.processing_finished.connect(self._on_adjustment_finished)
+                self.processing_integration.processing_error.connect(self._on_adjustment_error)
             
-            # Получение данных из проекта
-            observations = self.current_project.get_observations()
-            control_points = self.current_project.get_points()
+            # Установка моделей данных
+            self.processing_integration.set_models(
+                self.points_table.model(),
+                self.observations_table.model()
+            )
             
-            if not observations:
-                QMessageBox.warning(self, "Предупреждение", "В проекте нет измерений")
-                self._reset_ui_state()
-                return
-            
-            # Создание матрицы коэффициентов
-            builder = EquationsBuilder()
-            A, L = builder.build_adjustment_matrix(observations, control_points)
-            
-            # Формирование весовой матрицы
-            instruments = self.current_project.settings.get('instruments', {})
-            weight_builder = WeightBuilder(instruments)
-            P = weight_builder.build_weight_matrix(observations)
-            
-            # Уравнивание
-            engine = AdjustmentEngine()
-            result = engine.adjust(A, L, P)
-            
-            # Сохранение результатов в проект
-            self.current_project.save_adjustment_result(result)
-            
-            # Обновление интерфейса
-            self._update_ui_with_results(result)
-            
-            sigma0 = result.get('sigma0', 0)
-            self.statusBar().showMessage(f"Уравнивание выполнено: μ₀ = {sigma0:.6f}", 5000)
-            self._reset_ui_state()
+            # Запуск уравнивания в отдельном потоке
+            from geoadjust.gui.processing.processing_thread import ProcessingThread
+            self.processing_thread = ProcessingThread(self.processing_integration)
+            self.processing_thread.finished.connect(self._on_adjustment_finished)
+            self.processing_thread.error_occurred.connect(self._on_adjustment_error)
+            self.processing_thread.progress_updated.connect(self._on_progress_updated)
+            self.processing_thread.start()
             
         except Exception as e:
             QMessageBox.critical(self, "Ошибка", f"Ошибка при уравнивании:\n{str(e)}")
-            logger.error(f"Ошибка при уравнивании: {e}", exc_info=True)
             self.statusBar().showMessage("Ошибка уравнивания", 3000)
             self._reset_ui_state()
+    
+    def _on_progress_updated(self, percent: int, message: str):
+        """Обработчик обновления прогресса"""
+        self.progress_bar.setValue(percent)
+        self.statusBar().showMessage(message, 0)
+    
+    def _on_adjustment_finished(self, result: Dict[str, Any]):
+        """Обработчик завершения уравнивания"""
+        # Сохранение результатов в проект
+        if self.current_project:
+            self.current_project.save_adjustment_result(result)
+        
+        # Обновление интерфейса с результатами
+        self._update_ui_with_results(result)
+        
+        sigma0 = result.get('sigma0', 0)
+        self.statusBar().showMessage(f"Уравнивание выполнено: μ₀ = {sigma0:.6f}", 5000)
+        self._reset_ui_state()
+    
+    def _on_adjustment_error(self, error_msg: str):
+        """Обработчик ошибки уравнивания"""
+        QMessageBox.critical(self, "Ошибка", f"Ошибка при уравнивании:\n{error_msg}")
+        self.statusBar().showMessage("Ошибка уравнивания", 3000)
+        self._reset_ui_state()
     
     def _adjust_robust(self):
         """Робастное уравнивание"""

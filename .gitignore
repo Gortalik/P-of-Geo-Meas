@@ -6,27 +6,33 @@ __pycache__/
 *.pyd
 
 # Build and distribution artifacts
-dist/
 build/
+dist/
 *.egg-info/
 
-# Virtual environments
-venv/
+# Development environments
 .venv/
-env/
-.ENV/
+venv/
+.env
+.env.local
+.env.*
 
-# Testing
-.coverage
-coverage/
-htmlcov/
-.pytest_cache/
-.mypy_cache/
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
 
 # Logs
 *.log
 
-# OS generated files
-.DS_Store
-Thumbs.db
+# Coverage reports
+.coverage
+coverage/
+htmlcov/
+
+# Type checking cache
+.mypy_cache/
+.pytest_cache/
 ```

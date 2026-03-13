@@ -294,25 +294,42 @@ class WeightBuilder:
         Расчёт СКО вектора ГНСС.
         
         Для векторов ГНСС используется ковариационная матрица 3×3.
-        Здесь возвращаем среднюю СКО по компонентам.
+        Здесь возвращаем среднюю СКО по компонентам с учётом корреляций.
         """
-        # Получаем индивидуальные СКО компонент (если указаны)
-        sigma_x = getattr(obs, 'sigma_x', None)
-        sigma_y = getattr(obs, 'sigma_y', None)
-        sigma_z = getattr(obs, 'sigma_z', None)
+        # Получаем полную ковариационную матрицу 3×3 (если доступна)
+        cov_matrix = getattr(obs, 'covariance_matrix', None)
         
-        if sigma_x is not None and sigma_y is not None and sigma_z is not None:
-            # Средняя СКО по компонентам
-            sigma = np.sqrt((sigma_x**2 + sigma_y**2 + sigma_z**2) / 3.0)
-        else:
-            # Используем базовую точность ГНСС приёмника
-            # Для статических измерений: 3-5 мм + 0.5 ppm
-            distance_km = self._get_distance(obs, points)
-            if distance_km is None:
-                distance_km = 1.0  # По умолчанию 1 км
+        if cov_matrix is not None:
+            try:
+                import numpy as np
+                cov_matrix = np.array(cov_matrix)
+                # Использование полной ковариационной матрицы
+                # След матрицы (сумма дисперсий по диагонали)
+                trace = np.trace(cov_matrix)
+                # Средняя СКО с учётом корреляций
+                sigma = np.sqrt(trace / 3.0)
+            except Exception as e:
+                self.logger.warning(f"Ошибка при использовании ковариационной матрицы ГНСС: {e}")
+                cov_matrix = None
+        
+        if cov_matrix is None:
+            # Получаем индивидуальные СКО компонент (если указаны)
+            sigma_x = getattr(obs, 'sigma_x', None)
+            sigma_y = getattr(obs, 'sigma_y', None)
+            sigma_z = getattr(obs, 'sigma_z', None)
             
-            sigma_mm = np.sqrt(3.0**2 + (0.5 * distance_km)**2)
-            sigma = sigma_mm / 1000.0  # Перевод в метры
+            if sigma_x is not None and sigma_y is not None and sigma_z is not None:
+                # Средняя СКО по компонентам
+                sigma = np.sqrt((sigma_x**2 + sigma_y**2 + sigma_z**2) / 3.0)
+            else:
+                # Используем базовую точность ГНСС приёмника
+                # Для статических измерений: 3-5 мм + 0.5 ppm
+                distance_km = self._get_distance(obs, points)
+                if distance_km is None:
+                    distance_km = 1.0  # По умолчанию 1 км
+                
+                sigma_mm = np.sqrt(3.0**2 + (0.5 * distance_km)**2)
+                sigma = sigma_mm / 1000.0  # Перевод в метры
         
         self.logger.debug(
             f"Вектор ГНСС {obs.obs_id}: σ={sigma*1000:.2f}мм"

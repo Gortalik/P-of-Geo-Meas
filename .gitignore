@@ -14,33 +14,26 @@ env/
 .env.*
 
 # Build artifacts
-dist/
 build/
+dist/
 *.egg-info/
-
-# Editors
-.vscode/
-.idea/
-*.swp
-*.swo
 
 # Logs
 *.log
 
 # Coverage
 .coverage
-htmlcov/
 coverage/
+htmlcov/
 
-# Temporary files
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
 *.tmp
-*.temp
 
 # OS
 .DS_Store
 Thumbs.db
-
-# Testing
-.pytest_cache/
-.mypy_cache/
 ```

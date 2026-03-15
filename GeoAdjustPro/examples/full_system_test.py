@@ -93,7 +93,7 @@ def test_io_imports():
         from geoadjust.io.project.project_manager import ProjectManager
         print("✓ geoadjust.io.project.project_manager")
         
-        from geoadjust.io.project.gad_format import GADProjectFile
+        from geoadjust.io.project.gad_format import GADProject
         print("✓ geoadjust.io.project.gad_format")
         
         return True
@@ -112,7 +112,7 @@ def test_gui_imports():
         from geoadjust.gui.project_manager import ProjectManager as GUIProjectManager
         print("✓ geoadjust.gui.project_manager")
         
-        from geoadjust.gui.processing_pipeline import PipelineProcessor
+        from geoadjust.gui.processing_pipeline import GUIProcessingPipeline
         print("✓ geoadjust.gui.processing_pipeline")
         
         return True
@@ -163,18 +163,20 @@ def test_instruments():
     try:
         from geoadjust.core.adjustment.instruments import Instrument
         
-        # Создание инструмента
+        # Создание инструмента (используем правильные имена параметров)
         instrument = Instrument(
-            name="TotalStation_1",
-            angle_std=0.0005,  # радианы
-            distance_std_a=0.001,  # метры
-            distance_std_b=0.000001  # ppm
+            angular_accuracy=0.0005 * 206265,  # переводим радианы в секунды
+            distance_accuracy_a=1.0,  # мм
+            distance_accuracy_b=1.0  # мм/км
         )
-        print(f"✓ Создан инструмент: {instrument.name}")
+        print(f"✓ Создан инструмент: СКО угла={instrument.angular_accuracy:.2f}\", СКО расстояния a={instrument.distance_accuracy_a}мм")
         
-        # Проверка весовой матрицы
-        P = instrument.build_weight_matrix([1.0, 2.0, 3.0])
-        print(f"✓ Построена весовая матрица: {P.shape}")
+        # Проверка расчёта СКО
+        angle_sigma = instrument.calculate_angle_sigma()
+        print(f"✓ Расчёт СКО угла: {angle_sigma:.2f}\")")
+        
+        distance_sigma = instrument.calculate_distance_sigma(distance_km=1.0)
+        print(f"✓ Расчёт СКО расстояния (1км): {distance_sigma:.3f}мм")
         
         return True
     except Exception as e:
@@ -189,18 +191,35 @@ def test_weight_builder():
     
     try:
         from geoadjust.core.adjustment.weight_builder import WeightBuilder
+        from geoadjust.core.network.models import Observation
+        from geoadjust.core.adjustment.instruments import Instrument
         
-        builder = WeightBuilder()
+        # Создание инструмента для библиотеки
+        instrument = Instrument(
+            angular_accuracy=1.0,  # секунды
+            distance_accuracy_a=1.0,  # мм
+            distance_accuracy_b=1.0  # мм/км
+        )
         
-        # Тест для углов
-        angle_stds = [0.001, 0.002, 0.0015]
-        P_angles = builder.build_angle_weights(angle_stds)
-        print(f"✓ Весовая матрица для углов: {P_angles.shape}")
+        builder = WeightBuilder(instrument_library={"TS1": instrument})
         
-        # Тест для расстояний
-        dist_stds = [0.005, 0.003]
-        P_distances = builder.build_distance_weights(dist_stds)
-        print(f"✓ Весовая матрица для расстояний: {P_distances.shape}")
+        # Создание тестовых наблюдений
+        observations = [
+            Observation(
+                obs_id="dir1", obs_type="direction",
+                from_point="P1", to_point="P2",
+                value=45.0, instrument_name="TS1", sigma_apriori=None
+            ),
+            Observation(
+                obs_id="dist1", obs_type="distance",
+                from_point="P1", to_point="P2",
+                value=100.0, instrument_name="TS1", sigma_apriori=None
+            )
+        ]
+        
+        # Построение весовой матрицы
+        P = builder.build_weight_matrix(observations)
+        print(f"✓ Весовая матрица построена: {P.shape}")
         
         return True
     except Exception as e:
@@ -226,11 +245,11 @@ def test_projection():
         
         # Прямое преобразование (примерные координаты для зоны 7)
         lat, lon = 55.0, 37.0  # Москва
-        x, y = projection.forward(lat, lon, zone=7)
+        x, y = projection.geodetic_to_gauss_kruger(lat, lon, zone=7)
         print(f"✓ Прямое преобразование: ({lat}, {lon}) -> ({x:.2f}, {y:.2f})")
         
         # Обратное преобразование
-        lat_back, lon_back = projection.inverse(x, y, zone=7)
+        lat_back, lon_back = projection.gauss_kruger_to_geodetic(x, y, zone=7)
         print(f"✓ Обратное преобразование: ({x:.2f}, {y:.2f}) -> ({lat_back:.6f}, {lon_back:.6f})")
         
         # Проверка точности
@@ -260,9 +279,14 @@ def test_coordinate_transformer():
         rad = np.radians(deg)
         print(f"✓ Градусы в радианы: {deg}° -> {rad:.6f} рад")
         
-        # Тест перевода румба в дирекционный угол
-        azimuth = transformer.rumble_to_azimuth(45.0, "SV")
-        print(f"✓ Румб в дирекционный угол: 45° СВ -> {azimuth}°")
+        # Тест преобразования Гельмерта (простой пример)
+        x_new, y_new, z_new = transformer.helmert_7param_transform(
+            x=1000.0, y=2000.0, z=3000.0,
+            dx=0.1, dy=0.1, dz=0.1,
+            rx=0.0, ry=0.0, rz=0.0,
+            scale=0.0
+        )
+        print(f"✓ Преобразование Гельмерта: (1000, 2000, 3000) -> ({x_new:.3f}, {y_new:.3f}, {z_new:.3f})")
         
         return True
     except Exception as e:
@@ -291,7 +315,7 @@ def test_normative_classes():
         
         poly1 = library.get_class('poly-1')
         if poly1:
-            print(f"✓ Полигонометрия 1 класса: {poly1.name}, СКО угла: {poly1.max_angle_sigma}\"")
+            print(f"✓ Полигонометрия 1 класса: {poly1.name}, СКО угла: {poly1.max_angle_sigma}\\\"")
         
         return True
     except Exception as e:
@@ -308,41 +332,42 @@ def test_adjustment_engine():
         from geoadjust.core.network.models import NetworkPoint, Observation
         from geoadjust.core.adjustment.engine import AdjustmentEngine
         from geoadjust.core.adjustment.instruments import Instrument
+        from geoadjust.core.adjustment.weight_builder import WeightBuilder
+        import numpy as np
+        from scipy import sparse
         
-        # Создание простой сети из 3 точек
-        points = [
-            NetworkPoint(point_id="P1", coord_type="FIXED", x=0.0, y=0.0, h=0.0),
-            NetworkPoint(point_id="P2", coord_type="FREE", x=100.0, y=0.0, h=0.0),
-            NetworkPoint(point_id="P3", coord_type="FREE", x=50.0, y=86.6, h=0.0),
-        ]
-        
-        # Измерения
-        observations = [
-            Observation(obs_id="d1", obs_type="distance", from_point="P1", to_point="P2", value=100.0, instrument_name="TS1", sigma_apriori=0.005),
-            Observation(obs_id="d2", obs_type="distance", from_point="P2", to_point="P3", value=100.0, instrument_name="TS1", sigma_apriori=0.005),
-            Observation(obs_id="d3", obs_type="distance", from_point="P3", to_point="P1", value=100.0, instrument_name="TS1", sigma_apriori=0.005),
-        ]
-        
-        # Инструмент
+        # Создание инструмента
         instrument = Instrument(
-            name="TS1",
-            angle_std=0.0005,
-            distance_std_a=0.001,
-            distance_std_b=0.000001
+            angular_accuracy=1.0,
+            distance_accuracy_a=1.0,
+            distance_accuracy_b=1.0
         )
         
+        # Создание простейшей системы уравнений
+        # A - матрица коэффициентов, L - вектор измерений, P - весовая матрица
+        A = sparse.csr_matrix(np.array([
+            [1.0, 0.0],
+            [0.0, 1.0],
+            [1.0, 1.0]
+        ]))
+        L = np.array([100.0, 50.0, 150.0])
+        P = sparse.diags([1.0, 1.0, 1.0])
+        
         # Создание движка
-        engine = AdjustmentEngine(points, observations, [instrument])
+        engine = AdjustmentEngine()
+        engine.setup_equations(A, L, P)
         print(f"✓ Создан движок уравнивания")
-        print(f"  Точек: {len(points)}, Измерений: {len(observations)}")
+        print(f"  Размерность системы: {A.shape[0]} измерений, {A.shape[1]} неизвестных")
         
         # Запуск уравнивания
         results = engine.adjust()
         
         if results:
             print(f"✓ Уравнивание выполнено успешно")
-            if hasattr(results, 'sigma0'):
+            if hasattr(results, 'sigma0') and results.sigma0 is not None:
                 print(f"  СКО единицы веса: {results.sigma0:.6f}")
+            else:
+                print(f"  Решение найдено")
         else:
             print("⚠ Уравнивание не выполнено (возможно, недостаточно данных)")
         
@@ -370,7 +395,13 @@ def test_error_ellipse_analyzer():
             [0.0, 0.0, 0.0, 0.0002]
         ]))
         
-        analyzer = ErrorEllipseAnalyzer(Qxx)
+        # Координаты точек (для каждой точки x, y)
+        points_coords = np.array([
+            [0.0, 0.0],
+            [100.0, 0.0]
+        ])
+        
+        analyzer = ErrorEllipseAnalyzer(Qxx, points_coords)
         print(f"✓ Создан анализатор эллипсов ошибок")
         
         # Вычисление параметров эллипса для первой точки
@@ -436,17 +467,18 @@ def test_robust_estimator():
         A = sparse.random(n, m, density=0.6, format='csr').toarray()
         l = np.random.randn(n) * 0.001
         
-        estimator = RobustEstimator()
-        print(f"✓ Создан робастный оценщик")
+        estimator = RobustEstimator(method='huber')
+        print(f"✓ Создан робастный оценщик (метод Хьюбера)")
         
         # Тест функции Хубера
         residuals = np.array([-0.01, -0.005, 0.0, 0.005, 0.01])
         weights_hub = estimator.huber_weights(residuals)
         print(f"✓ Веса Хубера вычислены: {weights_hub.shape}")
         
-        # Тест функции датского правила
-        weights_dan = estimator.danish_weights(residuals)
-        print(f"✓ Веса датского правила вычислены: {weights_dan.shape}")
+        # Тест функции Тьюки
+        estimator_tukey = RobustEstimator(method='tukey')
+        weights_tuk = estimator_tukey.tukey_weights(residuals)
+        print(f"✓ Веса Тьюки вычислены: {weights_tuk.shape}")
         
         return True
     except Exception as e:

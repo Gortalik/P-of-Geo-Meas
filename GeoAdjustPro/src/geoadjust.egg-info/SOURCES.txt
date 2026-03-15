@@ -1,0 +1,7 @@
+setup.py
+src/geoadjust.egg-info/PKG-INFO
+src/geoadjust.egg-info/SOURCES.txt
+src/geoadjust.egg-info/dependency_links.txt
+src/geoadjust.egg-info/entry_points.txt
+src/geoadjust.egg-info/requires.txt
+src/geoadjust.egg-info/top_level.txt

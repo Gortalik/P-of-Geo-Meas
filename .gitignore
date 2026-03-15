@@ -1,77 +1,46 @@
 ```
-# Dependencies
-.venv/
-venv/
+# Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-*.py~
-*.py.class
-*.py.obj
-*.py.out
-*.py.o
-*.py.a
-*.py.so
-*.py.dll
-*.py.exe
-*.py.class
-*.py.jar
-*.py.war
-*.py.ear
-*.py.zip
-*.py.tar
-*.py.tgz
-*.py.tbz2
-*.py.txz
-*.py.rar
-*.py.7z
-*.py.gz
-*.py.bz2
-*.py.xz
-*.py.Z
-*.py.lz
-*.py.lzo
-*.py.lz4
-*.py.lzh
-*.py.cab
-*.py.arj
-*.py.rpm
-*.py.deb
-*.py.zst
-node_modules/
-julia-*/
-zig*/
-target/
-.gradle/
-.mypy_cache/
-.pytest_cache/
-coverage/
-htmlcov/
-.coverage
+
+# Dependencies
+.venv/
+venv/
+env/
+.env
+.env.local
+.env.*
+
+# Build artifacts
 dist/
 build/
 *.egg-info/
-.tox/
-.nox/
-.hypothesis/
-.DS_Store
-Thumbs.db
-.env
-.env.local
-*.env.*
-*.log
-*.tmp
-*.swp
-*.swo
+
+# Editors
 .vscode/
 .idea/
-*.class
-*.o
-*.exe
-*.dll
-*.so
-*.a
-*.obj
-*.out
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Coverage
+.coverage
+htmlcov/
+coverage/
+
+# Temporary files
+*.tmp
+*.temp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+.pytest_cache/
+.mypy_cache/
 ```

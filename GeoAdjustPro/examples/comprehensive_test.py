@@ -62,11 +62,11 @@ try:
     from geoadjust.core.analysis.gross_errors import GrossErrorAnalyzer
     print("✓ geoadjust.core.analysis.gross_errors")
     
-    from geoadjust.core.analysis.normative_classes import NormativeClasses
+    from geoadjust.core.analysis.normative_classes import NormativeClass, NormativeClassLibrary
     print("✓ geoadjust.core.analysis.normative_classes")
     
     # Reliability modules
-    from geoadjust.core.reliability.baarda_method import BaardaMethod
+    from geoadjust.core.reliability.baarda_method import BaardaReliability
     print("✓ geoadjust.core.reliability.baarda_method")
     
     # CRS modules
@@ -369,8 +369,8 @@ print("""
 ✓ Конвейер обработки (ProcessingPipeline)
 ✓ Анализ эллипсов ошибок (ErrorEllipseAnalyzer)
 ✓ Анализ грубых ошибок (GrossErrorAnalyzer)
-✓ Нормативные классы точности (NormativeClasses)
-✓ Метод Баарда (BaardaMethod)
+✓ Нормативные классы точности (NormativeClass, NormativeClassLibrary)
+✓ Метод Баарда (BaardaReliability)
 ✓ База данных СК (CRSDatabase)
 ✓ Проекция Гаусса-Крюгера (GaussKrugerProjection)
 ✓ Трансформация координат (CoordinateTransformer)

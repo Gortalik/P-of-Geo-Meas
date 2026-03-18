@@ -28,12 +28,12 @@ class ProjectManager:
         
         self._load_recent_projects()
     
-    def create_project(self, project_name: str, project_path: Path) -> 'GADProject':
+    def create_project(self, project_path: Path, project_name: str) -> 'GADProject':
         """Создание нового проекта"""
         from geoadjust.io.project.gad_format import GADProject
         
         # Создание директории проекта
-        project_dir = project_path / f"{project_name}.gad"
+        project_dir = Path(project_path) / f"{project_name}.gad"
         if project_dir.exists():
             raise FileExistsError(f"Проект уже существует: {project_dir}")
         

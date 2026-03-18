@@ -513,7 +513,7 @@ def test_project_manager():
             # Попытка создания нового проекта
             try:
                 pm.create_project(project_path, "Test Project")
-                print(f"✓ Проект создан: {project_path}")
+                print(f"✓ Проект создан: {pm.current_project.name}")
             except Exception as e:
                 print(f"⚠ Создание проекта: {e}")
         

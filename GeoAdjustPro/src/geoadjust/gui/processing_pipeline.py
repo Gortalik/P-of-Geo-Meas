@@ -309,8 +309,8 @@ class GUIProcessingPipeline:
         - Поиск грубых ошибок (метод Баарду)
         - Оценка точности
         """
-        from geoadjust.core.analysis.ellipse_errors import EllipseErrorsCalculator
-        from geoadjust.core.analysis.gross_errors import GrossErrorDetector
+        from geoadjust.core.analysis.ellipse_errors import ErrorEllipseAnalyzer
+        from geoadjust.core.analysis.gross_errors import GrossErrorAnalyzer
         
         analysis_result = {
             'ellipse_errors': [],
@@ -319,21 +319,36 @@ class GUIProcessingPipeline:
         }
         
         # Расчёт эллипсов ошибок
-        if 'adjusted_points' in adjustment_result:
-            ellipse_calculator = EllipseErrorsCalculator()
-            ellipses = ellipse_calculator.calculate(
-                adjustment_result['adjusted_points'],
-                adjustment_result.get('covariance_matrix')
+        if 'adjusted_points' in adjustment_result and 'covariance_matrix' in adjustment_result:
+            points_coords = [(p.get('x', 0), p.get('y', 0)) for p in adjustment_result['adjusted_points']]
+            ellipse_analyzer = ErrorEllipseAnalyzer(
+                adjustment_result['covariance_matrix'],
+                points_coords
             )
+            ellipses = []
+            for i in range(len(points_coords)):
+                try:
+                    a, b, alpha = ellipse_analyzer.get_ellipse_for_point(i)
+                    ellipses.append({'point_index': i, 'a': a, 'b': b, 'alpha': alpha})
+                except Exception:
+                    pass
             analysis_result['ellipse_errors'] = ellipses
         
         # Поиск грубых ошибок
-        detector = GrossErrorDetector()
-        gross_errors = detector.detect(
-            adjustment_result.get('residuals', []),
-            adjustment_result.get('weights', [])
-        )
-        analysis_result['gross_errors'] = gross_errors
+        residuals = adjustment_result.get('residuals', [])
+        if len(residuals) > 0:
+            from scipy import sparse
+            import numpy as np
+            n = len(residuals)
+            A = sparse.eye(n, format='csr')
+            P = sparse.diags(adjustment_result.get('weights', [1.0] * n))
+            V = np.array(residuals)
+            sigma0 = adjustment_result.get('sigma0', 1.0)
+            
+            analyzer = GrossErrorAnalyzer(A, P, V, sigma0=sigma0)
+            candidates = analyzer.analyze_standardized_residuals(threshold=2.5)
+            gross_errors = [{'obs_id': c.obs_id, 'residual': c.standardized_residual} for c in candidates]
+            analysis_result['gross_errors'] = gross_errors
         
         # Оценка точности
         analysis_result['accuracy_metrics'] = {

@@ -5,12 +5,31 @@
 """
 
 from typing import List, Tuple, Optional, Callable
+from pathlib import Path
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QToolBar, QAction, QMenu,
     QTabWidget, QFrame, QLabel, QPushButton, QToolButton, QSizePolicy
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QSize
 from PyQt5.QtGui import QIcon
+
+
+def get_resource_path(resource_name: str) -> Path:
+    """
+    Получение пути к ресурсу независимо от режима установки.
+    
+    Работает как в режиме разработки, так и после установки пакета.
+    """
+    try:
+        from importlib.resources import files
+        return files('geoadjust').joinpath(resource_name)
+    except (ImportError, Exception):
+        try:
+            from importlib_resources import files
+            return files('geoadjust').joinpath(resource_name)
+        except Exception:
+            return Path(__file__).parent.parent.parent / resource_name
+
 
 
 class RibbonGroup(QFrame):
@@ -48,7 +67,16 @@ class RibbonGroup(QFrame):
         button.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         
         if icon_name:
-            button.setIcon(QIcon(f"resources/icons/{icon_name}.png"))
+            try:
+                icon_path = get_resource_path(f"gui/resources/icons/{icon_name}.png")
+                if hasattr(icon_path, 'exists') and icon_path.exists():
+                    button.setIcon(QIcon(str(icon_path)))
+                else:
+                    # Использовать стандартную иконку если файл не найден
+                    button.setIcon(QIcon.fromTheme("applications-science"))
+            except Exception:
+                # Продолжить без иконки при ошибке
+                pass
         
         if shortcut:
             button.setShortcut(shortcut)
@@ -159,7 +187,14 @@ class QuickAccessToolbar(QToolBar):
         """Добавление действия"""
         action = QAction(text, self)
         if icon_name:
-            action.setIcon(QIcon(f"resources/icons/{icon_name}.png"))
+            try:
+                icon_path = get_resource_path(f"gui/resources/icons/{icon_name}.png")
+                if hasattr(icon_path, 'exists') and icon_path.exists():
+                    action.setIcon(QIcon(str(icon_path)))
+                else:
+                    action.setIcon(QIcon.fromTheme("applications-science"))
+            except Exception:
+                pass
         
         if callback:
             action.triggered.connect(callback)

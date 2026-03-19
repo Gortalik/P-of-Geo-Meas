@@ -28,6 +28,33 @@ from PyQt5.QtGui import QIcon, QFont
 logger = logging.getLogger(__name__)
 
 
+def get_resource_path(resource_name: str) -> Path:
+    """
+    Получение пути к ресурсу независимо от режима установки.
+    
+    Работает как в режиме разработки, так и после установки пакета.
+    
+    Args:
+        resource_name: Относительный путь к ресурсу внутри пакета
+        
+    Returns:
+        Path: Путь к ресурсу
+    """
+    try:
+        # Для Python 3.9+ с использованием importlib.resources
+        from importlib.resources import files
+        return files('geoadjust').joinpath(resource_name)
+    except (ImportError, Exception):
+        # Резервный вариант для разработки или старых версий Python
+        try:
+            # Попытка использовать backports
+            from importlib_resources import files
+            return files('geoadjust').joinpath(resource_name)
+        except Exception:
+            # Фоллбэк для режима разработки
+            return Path(__file__).parent.parent / resource_name
+
+
 class InterfaceType(Enum):
     """Тип интерфейса программы"""
     CLASSIC = "classic"  # Меню и тулбары (как в КРЕДО ДАТ 3.х)
@@ -64,7 +91,7 @@ class MainWindow(QMainWindow):
         
         # Настройка окна
         self.setWindowTitle(self.config.window_title)
-        self.setWindowIcon(QIcon("resources/icons/app_icon.ico"))
+        self._load_icon()
         
         if self.config.window_state == "maximized":
             self.setWindowState(Qt.WindowMaximized)
@@ -93,6 +120,21 @@ class MainWindow(QMainWindow):
         
         # Загрузка конфигурации рабочей области
         self._load_workspace_config()
+    
+    def _load_icon(self):
+        """Загрузка иконки приложения с обработкой ошибок"""
+        try:
+            icon_path = get_resource_path("gui/resources/icons/app_icon.ico")
+            if hasattr(icon_path, 'exists') and icon_path.exists():
+                self.setWindowIcon(QIcon(str(icon_path)))
+            else:
+                # Использовать стандартную иконку
+                self.setWindowIcon(QIcon.fromTheme("applications-science"))
+                logger.warning(f"Иконка не найдена: {icon_path}, используется стандартная")
+        except Exception as e:
+            logger.error(f"Ошибка загрузки иконки: {e}")
+            # Продолжить без иконки или использовать стандартную
+            self.setWindowIcon(QIcon.fromTheme("applications-science"))
     
     def _create_menu_bar(self):
         """Создание главного меню"""

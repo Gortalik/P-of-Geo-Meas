@@ -1,18 +1,41 @@
 from setuptools import setup, find_packages
+from pathlib import Path
+
+# Чтение версии из файла VERSION
+def get_version():
+    version_file = Path(__file__).parent / "VERSION"
+    if version_file.exists():
+        return version_file.read_text(encoding='utf-8').strip()
+    return "1.0.0"
+
+# Чтение README для long_description
+def get_long_description():
+    readme_file = Path(__file__).parent / "README.md"
+    if readme_file.exists():
+        return readme_file.read_text(encoding='utf-8')
+    return ""
 
 setup(
     name="geoadjust",
-    version="1.0.0",
+    version=get_version(),
     author="GeoAdjust Team",
     author_email="geoadjust@example.com",
     description="Профессиональная система уравнивания геодезических сетей",
-    long_description=open("README.md", encoding="utf-8").read() if __import__("pathlib").Path("README.md").exists() else "",
+    long_description=get_long_description(),
     long_description_content_type="text/markdown",
     url="https://github.com/geoadjust/geoadjust-pro",
     packages=find_packages(where="src"),
     package_dir={"": "src"},
+    include_package_data=True,  # Включение файлов из MANIFEST.in
     package_data={
-        "geoadjust.gui.resources": ["*.qss", "icons/*"],
+        "geoadjust": [
+            "gui/resources/*.qss",
+            "gui/resources/icons/*",
+            "gui/resources/styles/*",
+            "crs/database/*.yaml",
+            "resources/**/*",
+            "py.typed",  # Маркер для type checking
+        ],
     },
     entry_points={
         'console_scripts': [
@@ -40,6 +63,12 @@ setup(
         "dev": [
             "pytest>=6.0.0",
             "pytest-cov>=2.0.0",
+            "pytest-qt>=4.0.0",
+            "flake8>=4.0.0",
+            "mypy>=0.931",
+            "black>=22.0.0",
+            "build>=0.7.0",
+            "twine>=3.8.0",
         ],
     },
     classifiers=[

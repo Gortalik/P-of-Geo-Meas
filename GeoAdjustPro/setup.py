@@ -20,19 +20,23 @@ setup(
         ],
     },
     install_requires=[
-        "PyQt5>=5.15.0",
-        "PyQt5-sip>=12.8.0",
         "numpy>=1.20.0",
         "scipy>=1.7.0",
+        "scikit-sparse>=0.4.8",
+        "pyproj>=3.4.0",
+        "networkx>=2.8.0",
+        "PyQt5>=5.15.0",
+        "PyQt5-sip>=12.8.0",
         "matplotlib>=3.5.0",
+        "seaborn>=0.12.0",
         "python-docx>=0.8.11",
         "Pillow>=9.0.0",
         "openpyxl>=3.0.0",
+        "chardet>=4.0.0",
+        "requests>=2.28.0",
+        "pandas>=1.3.0",
     ],
     extras_require={
-        "gui": [
-            "seaborn>=0.12.0",
-        ],
         "dev": [
             "pytest>=6.0.0",
             "pytest-cov>=2.0.0",

@@ -25,34 +25,10 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, pyqtSignal, QSize
 from PyQt5.QtGui import QIcon, QFont
 
+# Импорт центральной функции для работы с ресурсами
+from geoadjust.utils import get_resource_path
+
 logger = logging.getLogger(__name__)
-
-
-def get_resource_path(resource_name: str) -> Path:
-    """
-    Получение пути к ресурсу независимо от режима установки.
-    
-    Работает как в режиме разработки, так и после установки пакета.
-    
-    Args:
-        resource_name: Относительный путь к ресурсу внутри пакета
-        
-    Returns:
-        Path: Путь к ресурсу
-    """
-    try:
-        # Для Python 3.9+ с использованием importlib.resources
-        from importlib.resources import files
-        return files('geoadjust').joinpath(resource_name)
-    except (ImportError, Exception):
-        # Резервный вариант для разработки или старых версий Python
-        try:
-            # Попытка использовать backports
-            from importlib_resources import files
-            return files('geoadjust').joinpath(resource_name)
-        except Exception:
-            # Фоллбэк для режима разработки
-            return Path(__file__).parent.parent / resource_name
 
 
 class InterfaceType(Enum):

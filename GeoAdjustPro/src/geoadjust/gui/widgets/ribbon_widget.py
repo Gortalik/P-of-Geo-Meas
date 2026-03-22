@@ -13,22 +13,8 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, pyqtSignal, QSize
 from PyQt5.QtGui import QIcon
 
-
-def get_resource_path(resource_name: str) -> Path:
-    """
-    Получение пути к ресурсу независимо от режима установки.
-    
-    Работает как в режиме разработки, так и после установки пакета.
-    """
-    try:
-        from importlib.resources import files
-        return files('geoadjust').joinpath(resource_name)
-    except (ImportError, Exception):
-        try:
-            from importlib_resources import files
-            return files('geoadjust').joinpath(resource_name)
-        except Exception:
-            return Path(__file__).parent.parent.parent / resource_name
+# Импорт центральной функции для работы с ресурсами
+from geoadjust.utils import get_resource_path
 
 
 

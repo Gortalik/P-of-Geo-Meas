@@ -55,28 +55,44 @@ def create_spec_file():
         'pyi-makespec',
         '--name', 'P-of-Geo-Meas',
         '--windowed',
-        '--icon', 'resources/icons/app_icon.ico' if Path('resources/icons/app_icon.ico').exists() else '',
-        '--add-data', f'{resources_path}{os.pathsep}resources' if resources_path.exists() else '',
-        '--add-data', f'{crs_path}{os.pathsep}crs_database' if crs_path.exists() else '',
-        '--add-data', f'{gui_resources_path}{os.pathsep}gui/resources' if gui_resources_path.exists() else '',
-        '--hidden-import', 'PyQt5.QtPrintSupport',
-        '--hidden-import', 'PyQt5.QtSvg',
-        '--hidden-import', 'scipy.sparse.csgraph._validation',
-        '--hidden-import', 'sksparse',
-        '--hidden-import', 'sksparse.cholmod',
-        '--hidden-import', 'yaml',
-        '--hidden-import', 'chardet',
-        '--hidden-import', 'docx',
-        '--hidden-import', 'matplotlib.backends.backend_qt5agg',
-        '--hidden-import', 'pandas._libs',
-        '--hidden-import', 'numpy.random._common',
-        '--hidden-import', 'openpyxl',
-        '--hidden-import', 'ezdxf',
-        'src/geoadjust/__main__.py'
     ]
     
-    # Удаляем пустые аргументы
-    cmd = [arg for arg in cmd if arg]
+    # Добавляем иконку только если файл существует
+    icon_path = 'resources/icons/app_icon.ico'
+    if Path(icon_path).exists():
+        cmd.extend(['--icon', icon_path])
+    
+    # Добавляем данные ресурсы
+    if resources_path.exists():
+        cmd.extend(['--add-data', f'{resources_path}{os.pathsep}resources'])
+        
+    if crs_path.exists():
+        cmd.extend(['--add-data', f'{crs_path}{os.pathsep}crs_database'])
+        
+    if gui_resources_path.exists():
+        cmd.extend(['--add-data', f'{gui_resources_path}{os.pathsep}gui/resources'])
+    
+    # Добавляем скрытые импорты
+    hidden_imports = [
+        'PyQt5.QtPrintSupport',
+        'PyQt5.QtSvg',
+        'scipy.sparse.csgraph._validation',
+        'sksparse',
+        'sksparse.cholmod',
+        'yaml',
+        'chardet',
+        'docx',
+        'matplotlib.backends.backend_qt5agg',
+        'pandas._libs',
+        'numpy.random._common',
+        'openpyxl',
+        'ezdxf'
+    ]
+    
+    for imp in hidden_imports:
+        cmd.extend(['--hidden-import', imp])
+        
+    cmd.append('src/geoadjust/__main__.py')
     
     print(f"Команда: {' '.join(cmd)}")
     result = subprocess.run(cmd, capture_output=True, text=True)

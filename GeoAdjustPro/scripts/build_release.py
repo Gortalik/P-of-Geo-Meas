@@ -54,7 +54,7 @@ def create_spec_file():
     cmd = [
         'pyi-makespec',
         '--name', 'P-of-Geo-Meas',
-        '--windowed',
+        '--console',  # Включаем консоль для отладки
     ]
     
     # Добавляем иконку только если файл существует
@@ -76,17 +76,30 @@ def create_spec_file():
     hidden_imports = [
         'PyQt5.QtPrintSupport',
         'PyQt5.QtSvg',
+        'PyQt5.QtSql',
+        'PyQt5.QtXml',
         'scipy.sparse.csgraph._validation',
+        'scipy.sparse.csgraph._matching',
+        'scipy.special._ufuncs_cxx',
+        'scipy.linalg.cython_lapack',
+        'scipy.linalg.cython_blas',
         'sksparse',
         'sksparse.cholmod',
         'yaml',
         'chardet',
         'docx',
+        'docx.oxml.ns',
+        'docx.opc.constants',
         'matplotlib.backends.backend_qt5agg',
         'pandas._libs',
+        'pandas._libs.tslibs.base',
         'numpy.random._common',
+        'numpy.random.bit_generator',
         'openpyxl',
-        'ezdxf'
+        'ezdxf',
+        'geoadjust.utils',
+        'geoadjust.gui.main_window',
+        'seaborn'
     ]
     
     for imp in hidden_imports:

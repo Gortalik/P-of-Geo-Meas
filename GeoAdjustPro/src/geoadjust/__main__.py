@@ -53,8 +53,19 @@ def check_dependencies():
 
 def main():
     """Основная функция запуска приложения"""
+    # Вывод информации о запуске в консоль
+    print("=" * 60)
+    print("GeoAdjust Pro - Запуск приложения")
+    print("=" * 60)
+    print(f"Версия Python: {sys.version}")
+    print(f"Платформа: {sys.platform}")
+    print()
+    
     # Проверка зависимостей
+    print("Проверка зависимостей...")
     check_dependencies()
+    print("✅ Все зависимости найдены")
+    print()
     
     # Импорт утилит из центрального модуля
     from geoadjust.utils import get_resource_path, setup_logging
@@ -62,6 +73,8 @@ def main():
     # Настройка логирования
     logger = setup_logging()
     logger.info("Запуск GeoAdjust Pro...")
+    print("Настройка логирования завершена")
+    print()
     
     try:
         from PyQt5.QtWidgets import QApplication
@@ -73,11 +86,14 @@ def main():
         sys.exit(1)
     
     # Создание приложения
+    print("Создание QApplication...")
     app = QApplication(sys.argv)
     app.setApplicationName("GeoAdjust Pro")
     app.setOrganizationName("GeoAdjust Team")
     app.setApplicationVersion("1.0.0")
     app.setStyle('Fusion')
+    print("✅ QApplication создан")
+    print()
     
     # Настройка шрифтов
     font = app.font()
@@ -103,6 +119,7 @@ def main():
     
     # Создание и показ главного окна
     try:
+        print("Создание главного окна...")
         window = MainWindow(config)
         
         # Попытка установить иконку приложения
@@ -118,14 +135,23 @@ def main():
             logger.error(f"Ошибка загрузки иконки: {e}")
             # Продолжить без иконки
         
+        print("✅ Главное окно создано")
+        print()
+        print("Показ окна приложения...")
         window.show()
         logger.info("Приложение GeoAdjust Pro запущено")
+        print("=" * 60)
+        print("🎉 ПРИЛОЖЕНИЕ УСПЕШНО ЗАПУЩЕНО!")
+        print("=" * 60)
     except Exception as e:
         logger.error(f"Ошибка создания главного окна: {e}")
         print(f"❌ Ошибка создания окна: {e}")
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
     
     # Запуск цикла событий
+    print("Запуск цикла событий Qt...")
     sys.exit(app.exec_())
 
 

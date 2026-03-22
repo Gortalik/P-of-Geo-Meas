@@ -116,10 +116,10 @@ def build_with_pyinstaller():
     ]
     
     print(f"Команда: {' '.join(cmd)}")
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=False, text=True)
     
     if result.returncode != 0:
-        print(f"Ошибка сборки:\n{result.stderr}")
+        print(f"Ошибка сборки: код возврата {result.returncode}")
         sys.exit(1)
     
     print("Сборка завершена успешно")

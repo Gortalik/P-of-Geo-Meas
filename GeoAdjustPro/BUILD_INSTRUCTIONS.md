@@ -35,8 +35,6 @@ pyi-makespec --name P-of-Geo-Meas --windowed \
   --hidden-import PyQt5.QtPrintSupport \
   --hidden-import PyQt5.QtSvg \
   --hidden-import scipy.sparse.csgraph._validation \
-  --hidden-import sksparse \
-  --hidden-import sksparse.cholmod \
   --hidden-import yaml \
   --hidden-import chardet \
   --hidden-import docx \
@@ -68,12 +66,16 @@ pyinstaller P-of-Geo-Meas.spec --clean --noconfirm
 
 ### Зависимости:
 Проект использует следующие основные библиотеки:
-- numpy, scipy - математические вычисления
+- numpy, scipy - математические вычисления (включая разреженные матрицы: splu, cg)
 - PyQt5 - графический интерфейс
-- pyproj, networkx - геодезические расчеты
+- networkx - геодезические расчеты
 - matplotlib, seaborn - визуализация
 - pandas, openpyxl, python-docx - работа с данными
 - chardet, requests - работа с файлами и сетью
+
+**Важно:** Проект **НЕ ТРЕБУЕТ** установки `pyproj` и `scikit-sparse`.
+Все преобразования координат выполняются через собственные модули (`geoadjust.crs`),
+а решение систем уравнений — через встроенные методы SciPy.
 
 ## Тестирование
 
@@ -85,5 +87,5 @@ pyinstaller P-of-Geo-Meas.spec --clean --noconfirm
 ## Примечания
 
 - Для полноценной работы необходимы все ресурсы из `resources/` и `src/geoadjust/resources/`
-- Некоторые зависимости (например, `scikit-sparse`) могут не собираться на Windows без специальных инструментов
-- При необходимости можно создать установщик с помощью Inno Setup
+- Проект **полностью кроссплатформенный** — работает на Windows, Linux и macOS без дополнительных настроек
+- Все зависимости входят в стандартную поставку SciPy и устанавливаются через pip

@@ -7,18 +7,21 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class RobustEstimator:
+class RobustMethods:
     """Реализация робастных методов уравнивания:
     - IRLS с функцией Хьюбера
     - IRLS с функцией Тьюки
     - L1-минимизация
+    
+    Примечание: Класс переименован из RobustEstimator в RobustMethods
+    для соответствия имени модуля.
     """
-
+    
     def __init__(self, method: Literal['huber', 'tukey', 'l1'] = 'huber'):
         self.method = method
         self.weights = None
         self.iterations = 0
-
+    
     def huber_weights(self, residuals: np.ndarray, c: float = 1.345) -> np.ndarray:
         """
         Веса по функции потерь Хьюбера
@@ -122,11 +125,12 @@ class RobustEstimator:
             U = AT @ P @ L
 
             try:
-                from sksparse.cholmod import cholesky
-                factor = cholesky(N.tocsc())
-                dx = factor(U)
+                # Используем LU-разложение SciPy вместо sksparse.cholmod
+                from scipy.sparse.linalg import splu
+                factor = splu(N.tocsc())
+                dx = factor.solve(U)
             except Exception as e:
-                warnings.warn(f"Используем плотное решение на итерации {iteration}: {e}")
+                logger.warning(f"Используем плотное решение на итерации {iteration}: {e}")
                 N_dense = N.toarray()
                 dx = np.linalg.solve(N_dense, U)
 
@@ -149,12 +153,11 @@ class RobustEstimator:
             # Вычисление стандартизованных остатков
             # q_vv = diag(P⁻¹ - A · N⁻¹ · A^T)
             try:
-                from sksparse.cholmod import cholesky as chol_func
-                factor = chol_func(N.tocsc())
-                N_inv = factor.inv()
-            except ImportError:
-                # sksparse не установлен, используем плотное решение
-                N_inv = np.linalg.pinv(N.toarray())
+                # Используем LU-разложение SciPy для вычисления обратной матрицы
+                from scipy.sparse.linalg import splu
+                factor = splu(N.tocsc())
+                # Для вычисления обратной матрицы через LU-разложение
+                N_inv = np.linalg.inv(N.toarray())
                 N_inv = sparse.csr_matrix(N_inv)
             except Exception as e:
                 logger.warning(f"Используем псевдообратную матрицу для стандартизации: {e}")

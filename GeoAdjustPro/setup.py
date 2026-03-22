@@ -45,7 +45,8 @@ setup(
     install_requires=[
         "numpy>=1.20.0",
         "scipy>=1.7.0",
-        "scikit-sparse>=0.4.8",
+        # scikit-sparse удалён - используем встроенные методы SciPy (splu, cg)
+        # Все необходимые функции входят в стандартную поставку SciPy и работают на Windows
         "pyproj>=3.4.0",
         "networkx>=2.8.0",
         "PyQt5>=5.15.0",

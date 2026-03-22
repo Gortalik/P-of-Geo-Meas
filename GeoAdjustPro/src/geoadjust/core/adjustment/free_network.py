@@ -106,9 +106,10 @@ class FreeNetworkAdjustment:
 
         # Решение расширенной системы
         try:
-            from sksparse.cholmod import cholesky
-            factor = cholesky(extended_matrix.tocsc())
-            solution = factor(extended_rhs)
+            # Используем LU-разложение SciPy вместо sksparse.cholmod
+            from scipy.sparse.linalg import splu
+            factor = splu(extended_matrix.tocsc())
+            solution = factor.solve(extended_rhs)
         except Exception as e:
             logger.warning(f"Используем плотное решение: {e}", exc_info=True)
             extended_dense = extended_matrix.toarray()

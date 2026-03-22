@@ -143,7 +143,11 @@ def test_build():
     """Тестирование собранного приложения"""
     print_step("ТЕСТИРОВАНИЕ СОБРАННОГО ПРИЛОЖЕНИЯ")
     
-    exe_path = Path('dist/P-of-Geo-Meas/P-of-Geo-Meas')
+    # На Windows исполняемый файл имеет расширение .exe
+    if os.name == 'nt':
+        exe_path = Path('dist/P-of-Geo-Meas/P-of-Geo-Meas.exe')
+    else:
+        exe_path = Path('dist/P-of-Geo-Meas/P-of-Geo-Meas')
     
     if not exe_path.exists():
         print(f"Ошибка: Исполняемый файл не найден: {exe_path}")

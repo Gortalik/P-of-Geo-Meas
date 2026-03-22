@@ -51,74 +51,13 @@ def check_dependencies():
         sys.exit(1)
 
 
-def get_resource_path(resource_name: str) -> Path:
-    """
-    Получение пути к ресурсу независимо от режима установки.
-    
-    Работает как в режиме разработки, так и после установки пакета.
-    
-    Args:
-        resource_name: Относительный путь к ресурсу внутри пакета
-        
-    Returns:
-        Path: Путь к ресурсу
-    """
-    try:
-        # Для Python 3.9+ с использованием importlib.resources
-        from importlib.resources import files
-        return files('geoadjust').joinpath(resource_name)
-    except (ImportError, Exception):
-        # Резервный вариант для разработки или старых версий Python
-        try:
-            # Попытка использовать backports
-            from importlib_resources import files
-            return files('geoadjust').joinpath(resource_name)
-        except Exception:
-            # Фоллбэк для режима разработки
-            return Path(__file__).parent.parent / resource_name
-
-
-def setup_logging(log_file: str = 'geoadjust.log') -> logging.Logger:
-    """
-    Настройка логирования приложения.
-    
-    Args:
-        log_file: Имя файла для логов
-        
-    Returns:
-        Logger: Настроенный логгер
-    """
-    logger = logging.getLogger('geoadjust')
-    logger.setLevel(logging.INFO)
-    
-    # Создаем форматтер
-    formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
-    )
-    
-    # Обработчик для файла
-    try:
-        file_handler = logging.FileHandler(log_file, encoding='utf-8')
-        file_handler.setLevel(logging.DEBUG)
-        file_handler.setFormatter(formatter)
-        logger.addHandler(file_handler)
-    except Exception as e:
-        print(f"Warning: Could not create log file: {e}")
-    
-    # Обработчик для консоли
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.INFO)
-    console_handler.setFormatter(formatter)
-    logger.addHandler(console_handler)
-    
-    return logger
-
-
 def main():
     """Основная функция запуска приложения"""
     # Проверка зависимостей
     check_dependencies()
+    
+    # Импорт утилит из центрального модуля
+    from geoadjust.utils import get_resource_path, setup_logging
     
     # Настройка логирования
     logger = setup_logging()

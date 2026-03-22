@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Автоматический скрипт сборки релизной версии P-of-Geo-Meas
+Автоматический скрипт сборки релизной версии GeoAdjustPro
 Запуск: poetry run build-release
 """
 
@@ -53,9 +53,10 @@ def create_spec_file():
     
     cmd = [
         'pyi-makespec',
-        '--name', 'P-of-Geo-Meas',
+        '--name', 'GeoAdjustPro',  # Изменено имя приложения
         '--console',  # Включаем консоль для отладки
         '--paths', 'src',  # Добавляем src в пути поиска модулей
+        '--paths', '.',  # Добавляем корень проекта
     ]
     
     # Добавляем иконку только если файл существует
@@ -98,8 +99,13 @@ def create_spec_file():
         'numpy.random.bit_generator',
         'openpyxl',
         'ezdxf',
+        'geoadjust',
         'geoadjust.utils',
+        'geoadjust.gui',
         'geoadjust.gui.main_window',
+        'geoadjust.core',
+        'geoadjust.io',
+        'geoadjust.crs',
         'seaborn'
     ]
     
@@ -124,7 +130,7 @@ def build_with_pyinstaller():
     
     cmd = [
         'pyinstaller',
-        'P-of-Geo-Meas.spec',
+        'GeoAdjustPro.spec',
         '--clean',
         '--noconfirm'
     ]
@@ -137,7 +143,7 @@ def build_with_pyinstaller():
         sys.exit(1)
     
     print("Сборка завершена успешно")
-    print(f"Результат: dist/P-of-Geo-Meas/")
+    print(f"Результат: dist/GeoAdjustPro/")
 
 
 def test_build():
@@ -146,9 +152,9 @@ def test_build():
     
     # На Windows исполняемый файл имеет расширение .exe
     if os.name == 'nt':
-        exe_path = Path('dist/P-of-Geo-Meas/P-of-Geo-Meas.exe')
+        exe_path = Path('dist/GeoAdjustPro/GeoAdjustPro.exe')
     else:
-        exe_path = Path('dist/P-of-Geo-Meas/P-of-Geo-Meas')
+        exe_path = Path('dist/GeoAdjustPro/GeoAdjustPro')
     
     if not exe_path.exists():
         print(f"Ошибка: Исполняемый файл не найден: {exe_path}")
@@ -198,9 +204,9 @@ def create_installer():
         print("Inno Setup Compiler не найден. Установите его с https://jrsoftware.org/isdl.php")
         return
     
-    iss_file = Path('P-of-Geo-Meas.iss')
+    iss_file = Path('GeoAdjustPro.iss')
     if not iss_file.exists():
-        print("Файл P-of-Geo-Meas.iss не найден. Пропускаем создание установщика.")
+        print("Файл GeoAdjustPro.iss не найден. Пропускаем создание установщика.")
         return
     
     cmd = ['iscc', str(iss_file)]
@@ -217,7 +223,7 @@ def create_installer():
     # Поиск созданного установщика
     output_dir = Path('Output')
     if output_dir.exists():
-        installers = list(output_dir.glob('P-of-Geo-Meas-Setup-*.exe'))
+        installers = list(output_dir.glob('GeoAdjustPro-Setup-*.exe'))
         if installers:
             installer = installers[0]
             print(f"\nГотовый установщик: {installer.absolute()}")
@@ -230,12 +236,12 @@ def create_release_package():
     # Создание имени архива с версией и датой
     version = "1.0.0"
     date_str = datetime.now().strftime("%Y%m%d")
-    archive_name = f"P-of-Geo-Meas-{version}-portable-{date_str}.zip"
+    archive_name = f"GeoAdjustPro-{version}-portable-{date_str}.zip"
     
-    # Архивация папки dist/P-of-Geo-Meas
+    # Архивация папки dist/GeoAdjustPro
     import zipfile
     
-    dist_dir = Path('dist/P-of-Geo-Meas')
+    dist_dir = Path('dist/GeoAdjustPro')
     if not dist_dir.exists():
         print(f"Ошибка: Директория {dist_dir} не найдена")
         return
@@ -254,7 +260,7 @@ def create_release_package():
 def main():
     """Основной процесс сборки"""
     print("="*80)
-    print("  АВТОМАТИЧЕСКАЯ СБОРКА P-OF-GEO-MEAS")
+    print("  АВТОМАТИЧЕСКАЯ СБОРКА GeoAdjust Pro")
     print("="*80)
     print(f"Дата: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"Версия: 1.0.0")
@@ -287,10 +293,10 @@ def main():
     print("  СБОРКА ЗАВЕРШЕНА УСПЕШНО!")
     print("="*80)
     print("\nГотовые файлы:")
-    print("  • Портативная версия: P-of-Geo-Meas-*.zip")
-    print("  • Исходная папка: dist/P-of-Geo-Meas/")
+    print("  • Портативная версия: GeoAdjustPro-*.zip")
+    print("  • Исходная папка: dist/GeoAdjustPro/")
     if os.name == 'nt':
-        print("  • Установщик: Output/P-of-Geo-Meas-Setup-*.exe")
+        print("  • Установщик: Output/GeoAdjustPro-Setup-*.exe")
 
 
 if __name__ == "__main__":

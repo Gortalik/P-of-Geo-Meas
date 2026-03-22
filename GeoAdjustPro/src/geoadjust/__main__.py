@@ -25,10 +25,10 @@ REQUIRED_PACKAGES = {
     'numpy': 'numpy',
     'scipy': 'scipy',
     'PyQt5': 'PyQt5',
-    'scikit-sparse': 'sksparse',
     'chardet': 'chardet',
     'networkx': 'networkx',
-    'pyproj': 'pyproj',
+    # pyproj удалён - используются собственные модули проекта (crs.transformer, crs.projection)
+    # Все преобразования координат работают через встроенные реализации без внешних зависимостей
     'pandas': 'pandas'
 }
 

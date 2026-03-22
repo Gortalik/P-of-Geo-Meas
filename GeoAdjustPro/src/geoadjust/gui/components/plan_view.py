@@ -7,7 +7,7 @@
 
 from PyQt5.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsEllipseItem, QGraphicsLineItem
 from PyQt5.QtCore import Qt, pyqtSignal, QRectF
-from PyQt5.QtGui import QPen, QBrush, QColor
+from PyQt5.QtGui import QPen, QBrush, QColor, QPainter
 
 
 class PlanGraphicsView(QGraphicsView):
@@ -24,7 +24,7 @@ class PlanGraphicsView(QGraphicsView):
         self.setScene(self.scene)
         
         # Настройка вида
-        self.setRenderHint(QGraphicsView.Antialiasing)
+        self.setRenderHint(QPainter.Antialiasing)
         self.setViewportUpdateMode(QGraphicsView.SmartViewportUpdate)
         self.setDragMode(QGraphicsView.RubberBandDrag)
         

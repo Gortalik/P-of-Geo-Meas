@@ -69,21 +69,8 @@ def main():
         print()
         
         # Импорт утилит из центрального модуля
-        # Для совместимости с PyInstaller используем относительные импорты
-        try:
-            # Попытка импорта для собранного приложения (PyInstaller)
-            from geoadjust.utils import get_resource_path, setup_logging
-        except ImportError:
-            try:
-                # Для запуска из исходников
-                from src.geoadjust.utils import get_resource_path, setup_logging
-            except ImportError:
-                # Если ничего не работает, пробуем альтернативный путь
-                import os
-                current_dir = Path(__file__).parent if '__file__' in globals() else Path.cwd()
-                src_path = current_dir / 'src' if (current_dir / 'src').exists() else current_dir
-                sys.path.insert(0, str(src_path))
-                from geoadjust.utils import get_resource_path, setup_logging
+        # Для совместимости с PyInstaller используем прямой импорт 'geoadjust'
+        from geoadjust.utils import get_resource_path, setup_logging
         
         # Настройка логирования
         logger = setup_logging()
@@ -123,18 +110,8 @@ def main():
         # Импорт главного окна
         try:
             # Для совместимости с PyInstaller используем относительные импорты
-            try:
-                from geoadjust.gui.main_window import MainWindow, MainWindowConfig, InterfaceType
-            except ImportError:
-                try:
-                    from src.geoadjust.gui.main_window import MainWindow, MainWindowConfig, InterfaceType
-                except ImportError:
-                    # Если ничего не работает, пробуем альтернативный путь
-                    current_dir = Path(__file__).parent if '__file__' in globals() else Path.cwd()
-                    src_path = current_dir / 'src' if (current_dir / 'src').exists() else current_dir
-                    if str(src_path) not in sys.path:
-                        sys.path.insert(0, str(src_path))
-                    from geoadjust.gui.main_window import MainWindow, MainWindowConfig, InterfaceType
+            # В собранном приложении модуль доступен как 'geoadjust', а не 'src.geoadjust'
+            from geoadjust.gui.main_window import MainWindow, MainWindowConfig, InterfaceType
         except ImportError as e:
             logger.error(f"Ошибка импорта главного окна: {e}")
             print(f"❌ Ошибка импорта: {e}")

@@ -8,26 +8,23 @@
 - FreeNetworkAdjustment: свободное уравнивание
 - RobustMethods: робастные методы уравнивания
 - Instrument: библиотека геодезических приборов
+
+Примечание: Все модули работают без зависимости от scikit-sparse.
+Используются стандартные методы SciPy (LU-разложение, сопряжённые градиенты).
 """
 
-# Эти модули требуют sksparse, импортируем с обработкой ошибок
-try:
-    from .engine import AdjustmentEngine
-    from .equations_builder import EquationsBuilder
-    from .weight_builder import WeightBuilder
-    from .free_network import FreeNetworkAdjustment
-    from .robust_methods import RobustMethods
-    from .instruments import Instrument
-    
-    __all__ = [
-        'AdjustmentEngine',
-        'EquationsBuilder',
-        'WeightBuilder',
-        'FreeNetworkAdjustment',
-        'RobustMethods',
-        'Instrument'
-    ]
-except ImportError as e:
-    # Если sksparse не установлен, предоставляем только Instrument
-    from .instruments import Instrument
-    __all__ = ['Instrument']
+from .engine import AdjustmentEngine
+from .equations_builder import EquationsBuilder
+from .weight_builder import WeightBuilder
+from .free_network import FreeNetworkAdjustment
+from .robust_methods import RobustMethods
+from .instruments import Instrument
+
+__all__ = [
+    'AdjustmentEngine',
+    'EquationsBuilder',
+    'WeightBuilder',
+    'FreeNetworkAdjustment',
+    'RobustMethods',
+    'Instrument'
+]

@@ -61,98 +61,146 @@ def main():
     print(f"Платформа: {sys.platform}")
     print()
     
-    # Проверка зависимостей
-    print("Проверка зависимостей...")
-    check_dependencies()
-    print("✅ Все зависимости найдены")
-    print()
-    
-    # Импорт утилит из центрального модуля
-    from src.geoadjust.utils import get_resource_path, setup_logging
-    
-    # Настройка логирования
-    logger = setup_logging()
-    logger.info("Запуск GeoAdjust Pro...")
-    print("Настройка логирования завершена")
-    print()
-    
     try:
-        from PyQt5.QtWidgets import QApplication
-        from PyQt5.QtCore import Qt
-        from PyQt5.QtGui import QIcon
-    except ImportError as e:
-        print(f"❌ Ошибка импорта PyQt5: {e}")
-        print("Установите PyQt5: pip install PyQt5")
-        sys.exit(1)
-    
-    # Создание приложения
-    print("Создание QApplication...")
-    app = QApplication(sys.argv)
-    app.setApplicationName("GeoAdjust Pro")
-    app.setOrganizationName("GeoAdjust Team")
-    app.setApplicationVersion("1.0.0")
-    app.setStyle('Fusion')
-    print("✅ QApplication создан")
-    print()
-    
-    # Настройка шрифтов
-    font = app.font()
-    font.setPointSize(10)
-    app.setFont(font)
-    
-    # Импорт главного окна
-    try:
-        from src.geoadjust.gui.main_window import MainWindow, MainWindowConfig, InterfaceType
-    except ImportError as e:
-        logger.error(f"Ошибка импорта главного окна: {e}")
-        print(f"❌ Ошибка импорта: {e}")
-        sys.exit(1)
-    
-    # Создание конфигурации
-    config = MainWindowConfig(
-        interface_type=InterfaceType.RIBBON,
-        window_title="GeoAdjust Pro",
-        window_size=(1600, 900),
-        window_state="maximized",
-        theme="light"
-    )
-    
-    # Создание и показ главного окна
-    try:
-        print("Создание главного окна...")
-        window = MainWindow(config)
-        
-        # Попытка установить иконку приложения
-        try:
-            icon_path = get_resource_path("gui/resources/icons/app_icon.ico")
-            if hasattr(icon_path, 'exists') and icon_path.exists():
-                window.setWindowIcon(QIcon(str(icon_path)))
-            else:
-                # Использовать стандартную иконку
-                window.setWindowIcon(QIcon.fromTheme("applications-science"))
-                logger.warning(f"Иконка не найдена: {icon_path}")
-        except Exception as e:
-            logger.error(f"Ошибка загрузки иконки: {e}")
-            # Продолжить без иконки
-        
-        print("✅ Главное окно создано")
+        # Проверка зависимостей
+        print("Проверка зависимостей...")
+        check_dependencies()
+        print("✅ Все зависимости найдены")
         print()
-        print("Показ окна приложения...")
-        window.show()
-        logger.info("Приложение GeoAdjust Pro запущено")
-        print("=" * 60)
-        print("🎉 ПРИЛОЖЕНИЕ УСПЕШНО ЗАПУЩЕНО!")
-        print("=" * 60)
+        
+        # Импорт утилит из центрального модуля
+        # Для совместимости с PyInstaller используем относительные импорты
+        try:
+            # Попытка импорта для собранного приложения (PyInstaller)
+            from geoadjust.utils import get_resource_path, setup_logging
+        except ImportError:
+            # Для запуска из исходников
+            from src.geoadjust.utils import get_resource_path, setup_logging
+        
+        # Настройка логирования
+        logger = setup_logging()
+        logger.info("Запуск GeoAdjust Pro...")
+        print("Настройка логирования завершена")
+        print()
+        
+        try:
+            from PyQt5.QtWidgets import QApplication
+            from PyQt5.QtCore import Qt
+            from PyQt5.QtGui import QIcon
+        except ImportError as e:
+            print(f"❌ Ошибка импорта PyQt5: {e}")
+            print("Установите PyQt5: pip install PyQt5")
+            print("\nНажмите Enter для выхода...")
+            try:
+                input()
+            except:
+                pass
+            sys.exit(1)
+        
+        # Создание приложения
+        print("Создание QApplication...")
+        app = QApplication(sys.argv)
+        app.setApplicationName("GeoAdjust Pro")
+        app.setOrganizationName("GeoAdjust Team")
+        app.setApplicationVersion("1.0.0")
+        app.setStyle('Fusion')
+        print("✅ QApplication создан")
+        print()
+        
+        # Настройка шрифтов
+        font = app.font()
+        font.setPointSize(10)
+        app.setFont(font)
+        
+        # Импорт главного окна
+        try:
+            # Для совместимости с PyInstaller используем относительные импорты
+            try:
+                from geoadjust.gui.main_window import MainWindow, MainWindowConfig, InterfaceType
+            except ImportError:
+                from src.geoadjust.gui.main_window import MainWindow, MainWindowConfig, InterfaceType
+        except ImportError as e:
+            logger.error(f"Ошибка импорта главного окна: {e}")
+            print(f"❌ Ошибка импорта: {e}")
+            print("\nНажмите Enter для выхода...")
+            try:
+                input()
+            except:
+                pass
+            sys.exit(1)
+        
+        # Создание конфигурации
+        config = MainWindowConfig(
+            interface_type=InterfaceType.RIBBON,
+            window_title="GeoAdjust Pro",
+            window_size=(1600, 900),
+            window_state="maximized",
+            theme="light"
+        )
+        
+        # Создание и показ главного окна
+        try:
+            print("Создание главного окна...")
+            window = MainWindow(config)
+            
+            # Попытка установить иконку приложения
+            try:
+                icon_path = get_resource_path("gui/resources/icons/app_icon.ico")
+                if hasattr(icon_path, 'exists') and icon_path.exists():
+                    window.setWindowIcon(QIcon(str(icon_path)))
+                else:
+                    # Использовать стандартную иконку
+                    window.setWindowIcon(QIcon.fromTheme("applications-science"))
+                    logger.warning(f"Иконка не найдена: {icon_path}")
+            except Exception as e:
+                logger.error(f"Ошибка загрузки иконки: {e}")
+                # Продолжить без иконки
+            
+            print("✅ Главное окно создано")
+            print()
+            print("Показ окна приложения...")
+            window.show()
+            logger.info("Приложение GeoAdjust Pro запущено")
+            print("=" * 60)
+            print("🎉 ПРИЛОЖЕНИЕ УСПЕШНО ЗАПУЩЕНО!")
+            print("=" * 60)
+        except Exception as e:
+            logger.error(f"Ошибка создания главного окна: {e}")
+            print(f"❌ Ошибка создания окна: {e}")
+            import traceback
+            traceback.print_exc()
+            print("\nНажмите Enter для выхода...")
+            try:
+                input()
+            except:
+                pass
+            sys.exit(1)
+        
+        # Запуск цикла событий
+        print("Запуск цикла событий Qt...")
+        exit_code = app.exec_()
+        
+        # Если произошла ошибка, оставляем консоль открытой для просмотра ошибки
+        if exit_code != 0:
+            print(f"\n❌ Приложение завершилось с кодом ошибки: {exit_code}")
+            print("Нажмите Enter для выхода...")
+            try:
+                input()
+            except:
+                pass
+        
+        sys.exit(exit_code)
+        
     except Exception as e:
-        logger.error(f"Ошибка создания главного окна: {e}")
-        print(f"❌ Ошибка создания окна: {e}")
+        print(f"\n❌ Критическая ошибка: {e}")
         import traceback
         traceback.print_exc()
+        print("\nНажмите Enter для выхода...")
+        try:
+            input()
+        except:
+            pass
         sys.exit(1)
-    
-    # Запуск цикла событий
-    print("Запуск цикла событий Qt...")
-    sys.exit(app.exec_())
 
 
 if __name__ == "__main__":

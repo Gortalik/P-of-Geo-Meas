@@ -14,7 +14,7 @@ from PyQt5.QtCore import Qt, pyqtSignal, QSize
 from PyQt5.QtGui import QIcon
 
 # Импорт центральной функции для работы с ресурсами
-from geoadjust.utils import get_resource_path
+from src.geoadjust.utils import get_resource_path
 
 
 

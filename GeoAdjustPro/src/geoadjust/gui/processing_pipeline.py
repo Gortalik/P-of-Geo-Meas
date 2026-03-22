@@ -246,8 +246,8 @@ class GUIProcessingPipeline:
         - Применение редукций
         - Отклонение грубых ошибок
         """
-        from geoadjust.core.preprocessing.module import PreprocessingModule
-        from geoadjust.io.project.gad_format import GADProject
+        from src.geoadjust.core.preprocessing.module import PreprocessingModule
+        from src.geoadjust.io.project.gad_format import GADProject
         
         # Получение настроек допусков
         tolerances = {}
@@ -277,7 +277,7 @@ class GUIProcessingPipeline:
         - Робастное уравнивание
         - Свободные сети
         """
-        from geoadjust.core.adjustment.engine import AdjustmentEngine
+        from src.geoadjust.core.adjustment.engine import AdjustmentEngine
         
         # Получение настроек системы координат
         crs_settings = {}
@@ -309,8 +309,8 @@ class GUIProcessingPipeline:
         - Поиск грубых ошибок (метод Баарду)
         - Оценка точности
         """
-        from geoadjust.core.analysis.ellipse_errors import ErrorEllipseAnalyzer
-        from geoadjust.core.analysis.gross_errors import GrossErrorAnalyzer
+        from src.geoadjust.core.analysis.ellipse_errors import ErrorEllipseAnalyzer
+        from src.geoadjust.core.analysis.gross_errors import GrossErrorAnalyzer
         
         analysis_result = {
             'ellipse_errors': [],

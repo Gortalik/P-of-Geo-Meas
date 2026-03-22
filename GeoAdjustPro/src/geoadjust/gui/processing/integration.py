@@ -10,10 +10,10 @@ from typing import Dict, Any, List, Optional
 from PyQt5.QtCore import QObject, pyqtSignal
 import numpy as np
 
-from geoadjust.core.network.models import NetworkPoint, Observation
-from geoadjust.core.adjustment.engine import AdjustmentEngine
-from geoadjust.core.adjustment.equations_builder import EquationsBuilder
-from geoadjust.core.adjustment.weight_builder import WeightBuilder
+from src.geoadjust.core.network.models import NetworkPoint, Observation
+from src.geoadjust.core.adjustment.engine import AdjustmentEngine
+from src.geoadjust.core.adjustment.equations_builder import EquationsBuilder
+from src.geoadjust.core.adjustment.weight_builder import WeightBuilder
 
 logger = logging.getLogger(__name__)
 

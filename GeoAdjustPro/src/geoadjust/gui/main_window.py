@@ -26,7 +26,7 @@ from PyQt5.QtCore import Qt, pyqtSignal, QSize
 from PyQt5.QtGui import QIcon, QFont
 
 # Импорт центральной функции для работы с ресурсами
-from geoadjust.utils import get_resource_path
+from src.geoadjust.utils import get_resource_path
 
 logger = logging.getLogger(__name__)
 
@@ -441,7 +441,7 @@ class MainWindow(QMainWindow):
     def _setup_project(self, project_data: Dict[str, Any]):
         """Настройка созданного проекта"""
         try:
-            from geoadjust.io.project.project_manager import ProjectManager
+            from src.geoadjust.io.project.project_manager import ProjectManager
             
             project_manager = ProjectManager()
             project = project_manager.create_project(
@@ -472,7 +472,7 @@ class MainWindow(QMainWindow):
         
         if file_path:
             try:
-                from geoadjust.io.project.project_manager import ProjectManager
+                from src.geoadjust.io.project.project_manager import ProjectManager
                 
                 project_manager = ProjectManager()
                 self.current_project = project_manager.open_project(Path(file_path))
@@ -492,7 +492,7 @@ class MainWindow(QMainWindow):
         
         if self.current_project:
             try:
-                from geoadjust.io.project.project_manager import ProjectManager
+                from src.geoadjust.io.project.project_manager import ProjectManager
                 
                 project_manager = ProjectManager()
                 project_manager.save_project()
@@ -519,7 +519,7 @@ class MainWindow(QMainWindow):
             if file_path:
                 try:
                     from pathlib import Path
-                    from geoadjust.io.project.project_manager import ProjectManager
+                    from src.geoadjust.io.project.project_manager import ProjectManager
                     
                     project_manager = ProjectManager()
                     project_manager.save_project_as(Path(file_path))
@@ -566,7 +566,7 @@ class MainWindow(QMainWindow):
             
             # Создание интеграции обработки если ещё не создана
             if self.processing_integration is None:
-                from geoadjust.gui.processing.integration import ProcessingIntegration
+                from src.geoadjust.gui.processing.integration import ProcessingIntegration
                 self.processing_integration = ProcessingIntegration(self)
                 
                 # Подключение сигналов
@@ -581,7 +581,7 @@ class MainWindow(QMainWindow):
             )
             
             # Запуск уравнивания в отдельном потоке
-            from geoadjust.gui.processing.processing_thread import ProcessingThread
+            from src.geoadjust.gui.processing.processing_thread import ProcessingThread
             self.processing_thread = ProcessingThread(self.processing_integration)
             self.processing_thread.finished.connect(self._on_adjustment_finished)
             self.processing_thread.error_occurred.connect(self._on_adjustment_error)
@@ -631,7 +631,7 @@ class MainWindow(QMainWindow):
             self.progress_bar.setVisible(True)
             self.progress_bar.setRange(0, 0)
             
-            from geoadjust.core.adjustment.robust_methods import RobustAdjustment
+            from src.geoadjust.core.adjustment.robust_methods import RobustAdjustment
             
             # Получение данных из проекта
             observations = self.current_project.get_observations()

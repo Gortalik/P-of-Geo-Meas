@@ -68,7 +68,7 @@ def main():
     print()
     
     # Импорт утилит из центрального модуля
-    from geoadjust.utils import get_resource_path, setup_logging
+    from src.geoadjust.utils import get_resource_path, setup_logging
     
     # Настройка логирования
     logger = setup_logging()
@@ -102,7 +102,7 @@ def main():
     
     # Импорт главного окна
     try:
-        from geoadjust.gui.main_window import MainWindow, MainWindowConfig, InterfaceType
+        from src.geoadjust.gui.main_window import MainWindow, MainWindowConfig, InterfaceType
     except ImportError as e:
         logger.error(f"Ошибка импорта главного окна: {e}")
         print(f"❌ Ошибка импорта: {e}")

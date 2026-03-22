@@ -26,6 +26,9 @@ ENV/
 env/
 .venv/
 
+# Poetry
+poetry.lock
+
 # IDE
 .idea/
 .vscode/
@@ -64,3 +67,22 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Build artifacts (PyInstaller)
+*.spec
+
+# Installers
+Output/
+*.exe
+*.msi
+*.deb
+*.rpm
+
+# Archives
+*.zip
+*.7z
+*.tar.gz
+*.tar.bz2
+
+# Backup files
+*.backup

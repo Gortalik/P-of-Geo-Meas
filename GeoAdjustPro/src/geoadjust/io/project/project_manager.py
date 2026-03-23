@@ -30,7 +30,7 @@ class ProjectManager:
     
     def create_project(self, project_path: Path, project_name: str) -> 'GADProject':
         """Создание нового проекта"""
-        from src.geoadjust.io.project.gad_format import GADProject
+        from geoadjust.io.project.gad_format import GADProject
         
         # Создание директории проекта
         project_dir = Path(project_path) / f"{project_name}.gad"
@@ -53,7 +53,7 @@ class ProjectManager:
     
     def open_project(self, project_path: Path) -> 'GADProject':
         """Открытие существующего проекта"""
-        from src.geoadjust.io.project.gad_format import GADProject
+        from geoadjust.io.project.gad_format import GADProject
         
         if not project_path.exists():
             raise FileNotFoundError(f"Проект не найден: {project_path}")

@@ -68,13 +68,25 @@ class PlanGraphicsView(QGraphicsView):
         self.scene.addItem(ellipse)
         self.points[point_id] = ellipse
         
-        # Добавление подписи
-        # TODO: Добавить текст с ID пункта
+        # Добавление подписи пункта
+        from PyQt5.QtWidgets import QGraphicsTextItem
+        text_item = QGraphicsTextItem(point_id)
+        text_item.setPos(x + size/2, y - size/2)
+        text_item.setDefaultTextColor(QColor("black"))
+        text_item.setFont(self.log_text.font() if hasattr(self, 'log_text') else QFont("Arial", 8))
+        self.scene.addItem(text_item)
+        
+        # Сохранение ссылки на текст для последующего удаления
+        ellipse.setData(1, text_item)
     
     def remove_point(self, point_id: str):
         """Удаление пункта с плана"""
         if point_id in self.points:
             item = self.points[point_id]
+            # Удаление текста подписи если он есть
+            text_item = item.data(1)
+            if text_item:
+                self.scene.removeItem(text_item)
             self.scene.removeItem(item)
             del self.points[point_id]
     

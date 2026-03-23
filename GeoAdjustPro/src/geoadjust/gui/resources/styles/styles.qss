@@ -181,32 +181,62 @@ QTabBar::tab:hover {
     background-color: #d8d8d8;
 }
 
-/* Ленточный интерфейс (Ribbon) */
+/* Ленточный интерфейс (Ribbon) - УЛУЧШЕННЫЙ СТИЛЬ */
 RibbonWidget {
     background-color: #f5f5f5;
+    border-bottom: 1px solid #d0d0d0;
 }
 
 RibbonWidget::tab {
     background-color: #e8e8e8;
     border: 1px solid #c0c0c0;
-    padding: 8px 16px;
+    padding: 10px 20px;
+    min-width: 100px;
 }
 
 RibbonWidget::tab:selected {
     background-color: white;
     border-bottom: 1px solid white;
+    font-weight: bold;
 }
 
-/* Группы ribbon */
+RibbonWidget::tab:hover:!selected {
+    background-color: #f0f0f0;
+}
+
+/* Группы ribbon - четкие границы */
 RibbonGroup {
-    border: 1px solid #d0d0d0;
-    border-radius: 3px;
+    border: 1px solid #b0b0b0;
+    border-radius: 4px;
     background-color: #fafafa;
-    margin: 2px;
-    padding: 4px;
+    margin: 4px;
+    padding: 6px;
+    spacing: 4px;
 }
 
 RibbonGroup QLabel {
-    font-size: 8pt;
-    color: #666;
+    font-size: 9pt;
+    color: #333;
+    font-weight: bold;
+    padding-top: 4px;
+}
+
+/* Кнопки в Ribbon */
+RibbonGroup QToolButton {
+    border: 1px solid #c0c0c0;
+    border-radius: 3px;
+    padding: 8px 12px;
+    background-color: #f5f5f5;
+    text-align: center;
+    min-width: 80px;
+}
+
+RibbonGroup QToolButton:hover {
+    background-color: #e0e7ff;
+    border: 1px solid #4a90e2;
+}
+
+RibbonGroup QToolButton:pressed {
+    background-color: #4a90e2;
+    color: white;
 }

@@ -7,6 +7,7 @@
 
 import os
 import sys
+import struct
 import shutil
 import subprocess
 from pathlib import Path
@@ -59,10 +60,29 @@ def create_spec_file():
         '--paths', '.',  # Добавляем корень проекта
     ]
     
-    # Добавляем иконку только если файл существует
+    # Добавляем иконку только если файл существует и является валидным
     icon_path = 'resources/icons/app_icon.ico'
     if Path(icon_path).exists():
-        cmd.extend(['--icon', icon_path])
+        # Проверяем валидность ICO файла перед использованием
+        try:
+            with open(icon_path, 'rb') as f:
+                data = f.read()
+                if len(data) >= 6:
+                    icon_count = struct.unpack('<H', data[4:6])[0]
+                    if icon_count > 0 and len(data) >= 22:
+                        # Проверяем первое смещение и размер
+                        offset = struct.unpack('<I', data[18:22])[0]
+                        size_in_bytes = struct.unpack('<I', data[14:18])[0]
+                        if offset < len(data) and offset + size_in_bytes <= len(data):
+                            cmd.extend(['--icon', icon_path])
+                        else:
+                            print(f"Warning: Некорректный ICO файл {icon_path} (неверное смещение или размер), пропускаем иконку")
+                    else:
+                        print(f"Warning: Некорректный ICO файл {icon_path}, пропускаем иконку")
+                else:
+                    print(f"Warning: Слишком маленький ICO файл {icon_path}, пропускаем иконку")
+        except Exception as e:
+            print(f"Warning: Ошибка проверки ICO файла {icon_path}: {e}, пропускаем иконку")
     
     # Добавляем данные ресурсы
     if resources_path.exists():

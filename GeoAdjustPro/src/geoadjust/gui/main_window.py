@@ -553,17 +553,38 @@ class MainWindow(QMainWindow):
     
     def _adjust_classic(self):
         """Классическое МНК уравнивание"""
-        logger.info("Запуск классического МНК уравнивания")
+        logger.info("=" * 60)
+        logger.info("ЗАПУСК КЛАССИЧЕСКОГО МНК УРАВНИВАНИЯ")
+        logger.info("=" * 60)
         
         if not self.current_project:
+            logger.error("Нет открытого проекта для уравнивания")
             QMessageBox.warning(self, "Предупреждение", "Нет открытого проекта")
             return
         
         try:
+            logger.info(f"Текущий проект: {self.current_project.name}")
+            logger.info("Проверка данных проекта...")
+            
+            # Получение данных из проекта для проверки
+            observations = self.current_project.get_observations()
+            control_points = self.current_project.get_points()
+            
+            logger.info(f"Количество измерений: {len(observations) if observations else 0}")
+            logger.info(f"Количество пунктов: {len(control_points) if control_points else 0}")
+            
+            if not observations:
+                logger.error("В проекте нет измерений")
+                QMessageBox.warning(self, "Предупреждение", "В проекте нет измерений")
+                return
+            
             self.mode_label.setText("Режим: уравнивание")
             self.statusBar().showMessage("Выполняется уравнивание...", 0)
             self.progress_bar.setVisible(True)
+            self.progress_bar.setRange(0, 100)
+            self.progress_bar.setValue(0)
             
+            logger.info("Создание интеграции обработки...")
             # Создание интеграции обработки если ещё не создана
             if self.processing_integration is None:
                 from src.geoadjust.gui.processing.integration import ProcessingIntegration
@@ -573,14 +594,17 @@ class MainWindow(QMainWindow):
                 self.processing_integration.progress_updated.connect(self._on_progress_updated)
                 self.processing_integration.processing_finished.connect(self._on_adjustment_finished)
                 self.processing_integration.processing_error.connect(self._on_adjustment_error)
+                logger.info("Интеграция обработки создана и настроена")
             
             # Установка моделей данных
+            logger.info("Установка моделей данных...")
             self.processing_integration.set_models(
                 self.points_table.model(),
                 self.observations_table.model()
             )
             
             # Запуск уравнивания в отдельном потоке
+            logger.info("Запуск потока обработки...")
             from src.geoadjust.gui.processing.processing_thread import ProcessingThread
             self.processing_thread = ProcessingThread(self.processing_integration)
             self.processing_thread.finished.connect(self._on_adjustment_finished)
@@ -588,7 +612,10 @@ class MainWindow(QMainWindow):
             self.processing_thread.progress_updated.connect(self._on_progress_updated)
             self.processing_thread.start()
             
+            logger.info("Поток обработки запущен")
+            
         except Exception as e:
+            logger.error(f"КРИТИЧЕСКАЯ ОШИБКА при уравнивании: {e}", exc_info=True)
             QMessageBox.critical(self, "Ошибка", f"Ошибка при уравнивании:\n{str(e)}")
             self.statusBar().showMessage("Ошибка уравнивания", 3000)
             self._reset_ui_state()
@@ -690,21 +717,129 @@ class MainWindow(QMainWindow):
             if 'accuracy' in result and 'error_ellipses' in result['accuracy']:
                 self.plan_view.draw_error_ellipses(result['accuracy']['error_ellipses'])
     
-    def _import_from_instrument(self):
-        """Импорт данных из прибора"""
-        logger.info("Импорт данных из прибора")
-    
     def _import_file(self):
         """Импорт данных из файла"""
-        logger.info("Импорт данных из файла")
+        logger.info("=" * 60)
+        logger.info("ЗАПУСК ИМПОРТА ДАННЫХ ИЗ ФАЙЛА")
+        logger.info("=" * 60)
+        
+        try:
+            file_path, selected_filter = QFileDialog.getOpenFileName(
+                self,
+                "Импорт данных",
+                "",
+                "Все поддерживаемые файлы (*.txt *.csv *.dat *.xml *.json *.gpf *.tpf);;"
+                "Текстовые файлы (*.txt);;"
+                "CSV файлы (*.csv);;"
+                "DAT файлы (*.dat);;"
+                "XML файлы (*.xml);;"
+                "JSON файлы (*.json);;"
+                "Файлы ГЕОМИР (*.gpf);;"
+                "Файлы CREDO (*.tpf);;"
+                "Все файлы (*)"
+            )
+            
+            if file_path:
+                logger.info(f"Выбран файл для импорта: {file_path}")
+                
+                # Проверка существования файла
+                import os
+                if not os.path.exists(file_path):
+                    logger.error(f"Файл не найден: {file_path}")
+                    QMessageBox.critical(self, "Ошибка", f"Файл не найден:\n{file_path}")
+                    return
+                
+                logger.info(f"Размер файла: {os.path.getsize(file_path)} байт")
+                
+                # TODO: Реализация импорта в зависимости от типа файла
+                logger.info(f"Тип файла определяется по расширению: {selected_filter}")
+                
+                QMessageBox.information(self, "Импорт", f"Файл выбран:\n{file_path}\n\nФункция импорта в разработке")
+                logger.info("Импорт файла завершен (заглушка)")
+                
+        except Exception as e:
+            logger.error(f"ОШИБКА при импорте файла: {e}", exc_info=True)
+            QMessageBox.critical(self, "Ошибка", f"Ошибка при импорте:\n{str(e)}")
     
     def _export_file(self):
         """Экспорт данных в файл"""
-        logger.info("Экспорт данных в файл")
+        logger.info("=" * 60)
+        logger.info("ЗАПУСК ЭКСПОРТА ДАННЫХ В ФАЙЛ")
+        logger.info("=" * 60)
+        
+        if not self.current_project:
+            logger.warning("Нет открытого проекта для экспорта")
+            QMessageBox.warning(self, "Предупреждение", "Нет открытого проекта")
+            return
+        
+        try:
+            file_path, _ = QFileDialog.getSaveFileName(
+                self,
+                "Экспорт данных",
+                "",
+                "Текстовые файлы (*.txt);;"
+                "CSV файлы (*.csv);;"
+                "XML файлы (*.xml);;"
+                "JSON файлы (*.json);;"
+                "Все файлы (*)"
+            )
+            
+            if file_path:
+                logger.info(f"Выбран путь для экспорта: {file_path}")
+                
+                # TODO: Реализация экспорта данных
+                logger.info("Экспорт данных в разработке")
+                QMessageBox.information(self, "Экспорт", f"Данные будут экспортированы в:\n{file_path}\n\nФункция экспорта в разработке")
+                logger.info("Экспорт файла завершен (заглушка)")
+                
+        except Exception as e:
+            logger.error(f"ОШИБКА при экспорте файла: {e}", exc_info=True)
+            QMessageBox.critical(self, "Ошибка", f"Ошибка при экспорте:\n{str(e)}")
     
     def _export_to_credo(self):
         """Экспорт данных в КРЕДО"""
-        logger.info("Экспорт данных в КРЕДО")
+        logger.info("=" * 60)
+        logger.info("ЗАПУСК ЭКСПОРТА ДАННЫХ В КРЕДО")
+        logger.info("=" * 60)
+        
+        if not self.current_project:
+            logger.warning("Нет открытого проекта для экспорта в КРЕДО")
+            QMessageBox.warning(self, "Предупреждение", "Нет открытого проекта")
+            return
+        
+        try:
+            file_path, _ = QFileDialog.getSaveFileName(
+                self,
+                "Экспорт в КРЕДО",
+                "",
+                "CREDO files (*.tpf);;"
+                "Все файлы (*)"
+            )
+            
+            if file_path:
+                logger.info(f"Выбран путь для экспорта в КРЕДО: {file_path}")
+                # TODO: Реализация экспорта в формат КРЕДО
+                QMessageBox.information(self, "Экспорт в КРЕДО", f"Данные будут экспортированы в:\n{file_path}\n\nФункция экспорта в КРЕДО в разработке")
+                logger.info("Экспорт в КРЕДО завершен (заглушка)")
+                
+        except Exception as e:
+            logger.error(f"ОШИБКА при экспорте в КРЕДО: {e}", exc_info=True)
+            QMessageBox.critical(self, "Ошибка", f"Ошибка при экспорте в КРЕДО:\n{str(e)}")
+    
+    def _import_from_instrument(self):
+        """Импорт данных из прибора"""
+        logger.info("=" * 60)
+        logger.info("ЗАПУСК ИМПОРТА ДАННЫХ ИЗ ПРИБОРА")
+        logger.info("=" * 60)
+        
+        try:
+            # TODO: Диалог выбора прибора и порта
+            QMessageBox.information(self, "Импорт из прибора", "Функция импорта из прибора в разработке")
+            logger.info("Импорт из прибора завершен (заглушка)")
+            
+        except Exception as e:
+            logger.error(f"ОШИБКА при импорте из прибора: {e}", exc_info=True)
+            QMessageBox.critical(self, "Ошибка", f"Ошибка при импорте из прибора:\n{str(e)}")
     
     def _check_tolerances(self):
         """Контроль допусков"""

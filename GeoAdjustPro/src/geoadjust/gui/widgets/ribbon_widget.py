@@ -17,7 +17,6 @@ from PyQt5.QtGui import QIcon
 from src.geoadjust.utils import get_resource_path
 
 
-
 class RibbonGroup(QFrame):
     """Группа кнопок в ленте"""
     
@@ -51,15 +50,19 @@ class RibbonGroup(QFrame):
         button.setText(text)
         button.setToolTip(text + (f" ({shortcut})" if shortcut else ""))
         button.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+        button.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)  # Текст под иконкой
+        button.setAutoRaise(False)  # Не делать кнопку "плоской"
         
         if icon_name:
             try:
                 icon_path = get_resource_path(f"gui/resources/icons/{icon_name}.png")
                 if hasattr(icon_path, 'exists') and icon_path.exists():
                     button.setIcon(QIcon(str(icon_path)))
+                    button.setIconSize(QSize(32, 32))  # Увеличенный размер иконки
                 else:
                     # Использовать стандартную иконку если файл не найден
                     button.setIcon(QIcon.fromTheme("applications-science"))
+                    button.setIconSize(QSize(32, 32))
             except Exception:
                 # Продолжить без иконки при ошибке
                 pass

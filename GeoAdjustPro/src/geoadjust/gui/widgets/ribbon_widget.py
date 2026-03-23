@@ -24,15 +24,16 @@ class RibbonGroup(QFrame):
         super().__init__(parent)
         self.title = title
         self.setFrameStyle(QFrame.StyledPanel)
+        self.setMinimumWidth(120)  # Минимальная ширина группы
         
         # Основной макет
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(2, 2, 2, 2)
-        layout.setSpacing(2)
+        layout.setContentsMargins(5, 5, 5, 5)
+        layout.setSpacing(5)
         
         # Панель кнопок
         self.buttons_layout = QHBoxLayout()
-        self.buttons_layout.setSpacing(2)
+        self.buttons_layout.setSpacing(5)
         layout.addLayout(self.buttons_layout)
         
         # Подпись группы
@@ -49,9 +50,11 @@ class RibbonGroup(QFrame):
         button = QToolButton()
         button.setText(text)
         button.setToolTip(text + (f" ({shortcut})" if shortcut else ""))
-        button.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+        button.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Expanding)
         button.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)  # Текст под иконкой
         button.setAutoRaise(False)  # Не делать кнопку "плоской"
+        button.setMinimumWidth(70)  # Минимальная ширина кнопки
+        button.setMinimumHeight(70)  # Минимальная высота кнопки
         
         if icon_name:
             try:
@@ -87,8 +90,8 @@ class RibbonTab(QWidget):
         self.title = title
         
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(5)
+        layout.setContentsMargins(5, 5, 5, 5)
+        layout.setSpacing(10)
         
         self.groups = []
     

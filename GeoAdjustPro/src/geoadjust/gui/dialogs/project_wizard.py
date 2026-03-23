@@ -66,11 +66,6 @@ class ProjectWizard(QWizard):
         self.addPage(self._create_data_page())
         self.addPage(self._create_settings_page())
         
-        # Установка заголовков
-        self.setField("projectName", "")
-        self.setField("projectPath", "")
-        self.setField("crsType", "SK-42")
-        
         logger.info("Мастер создания проекта инициализирован")
     
     def _create_intro_page(self) -> QWizardPage:
@@ -128,8 +123,9 @@ class ProjectWizard(QWizard):
         
         layout.addRow("Расположение:", location_layout)
         
-        # Валидация страницы
-        page.registerField = lambda *args: None  # Заглушка для совместимости
+        # Регистрация полей для QWizard
+        page.registerField("projectName*", self.name_edit)
+        page.registerField("projectPath*", self.path_edit)
         
         return page
     
@@ -330,9 +326,9 @@ class ProjectWizard(QWizard):
             files_to_import.append(item.data(Qt.UserRole))
         
         return {
-            'name': self.field("projectName"),
+            'name': self.name_edit.text(),
             'description': self.desc_edit.toPlainText(),
-            'path': self.field("projectPath"),
+            'path': self.path_edit.text(),
             'crs': {
                 'type': crs_value,
                 'zone': self.zone_spin.value(),
@@ -350,8 +346,18 @@ class ProjectWizard(QWizard):
     def accept(self):
         """Завершение мастера"""
         # Валидация данных
-        project_path = Path(self.field("projectPath"))
-        project_name = self.field("projectName")
+        project_path_str = self.path_edit.text()
+        project_name = self.name_edit.text()
+        
+        if not project_path_str or not project_name:
+            QMessageBox.warning(
+                self,
+                "Ошибка",
+                "Необходимо указать имя проекта и путь к папке"
+            )
+            return
+        
+        project_path = Path(project_path_str)
         
         # Проверка существования файла проекта
         gad_file = project_path / f"{project_name}.gad"

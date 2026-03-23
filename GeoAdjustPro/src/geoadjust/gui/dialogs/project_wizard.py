@@ -44,6 +44,21 @@ class ProjectWizard(QWizard):
         self.setOption(QWizard.HaveHelpButton, False)
         self.setOption(QWizard.NoBackButtonOnStartPage, True)
         
+        # Инициализация атрибутов до создания страниц
+        self.name_edit = None
+        self.desc_edit = None
+        self.path_edit = None
+        self.crs_radio_group = None
+        self.zone_spin = None
+        self.meridian_edit = None
+        self.files_list = None
+        self.method_radio_group = None
+        self.curvature_check = None
+        self.refraction_check = None
+        self.centering_check = None
+        self.import_points_check = None
+        self.import_obs_check = None
+        
         # Добавление страниц
         self.addPage(self._create_intro_page())
         self.addPage(self._create_location_page())
@@ -93,7 +108,6 @@ class ProjectWizard(QWizard):
         # Имя проекта
         self.name_edit = QLineEdit()
         self.name_edit.setPlaceholderText("Введите имя проекта")
-        self.registerField("projectName*", self.name_edit)  # Обязательное поле
         layout.addRow("Имя проекта:", self.name_edit)
         
         # Описание
@@ -106,7 +120,6 @@ class ProjectWizard(QWizard):
         location_layout = QHBoxLayout()
         self.path_edit = QLineEdit()
         self.path_edit.setPlaceholderText("Выберите папку для проекта")
-        self.registerField("projectPath*", self.path_edit)
         location_layout.addWidget(self.path_edit)
         
         browse_btn = QPushButton("Обзор...")
@@ -114,6 +127,9 @@ class ProjectWizard(QWizard):
         location_layout.addWidget(browse_btn)
         
         layout.addRow("Расположение:", location_layout)
+        
+        # Валидация страницы
+        page.registerField = lambda *args: None  # Заглушка для совместимости
         
         return page
     

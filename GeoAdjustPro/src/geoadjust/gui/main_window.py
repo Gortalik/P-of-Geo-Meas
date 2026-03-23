@@ -313,10 +313,10 @@ class MainWindow(QMainWindow):
         
         # Тулбар "Редактирование"
         edit_toolbar = QToolBar("Редактирование", self)
-        edit_toolbar.addAction("Отменить", None)
-        edit_toolbar.addAction("Повторить", None)
-        edit_toolbar.addAction("Копировать", None)
-        edit_toolbar.addAction("Вставить", None)
+        edit_toolbar.addAction("Отменить")
+        edit_toolbar.addAction("Повторить")
+        edit_toolbar.addAction("Копировать")
+        edit_toolbar.addAction("Вставить")
         self.addToolBar(Qt.TopToolBarArea, edit_toolbar)
         
         # Тулбар "Обработка"
@@ -444,9 +444,10 @@ class MainWindow(QMainWindow):
             from geoadjust.io.project.project_manager import ProjectManager
             
             project_manager = ProjectManager()
+            # Исправлен порядок аргументов: сначала path, затем name
             project = project_manager.create_project(
-                project_data['name'],
-                Path(project_data['path'])
+                Path(project_data['path']),
+                project_data['name']
             )
             self.current_project = project
             
@@ -457,7 +458,7 @@ class MainWindow(QMainWindow):
             logger.info(f"Проект создан: {project_data['name']}")
         except Exception as e:
             QMessageBox.critical(self, "Ошибка", f"Не удалось создать проект:\n{str(e)}")
-            logger.error(f"Ошибка при создании проекта: {e}")
+            logger.error(f"Ошибка при создании проекта: {e}", exc_info=True)
     
     def _open_project(self):
         """Открытие существующего проекта"""

@@ -7,7 +7,7 @@
 
 from PyQt5.QtCore import QAbstractTableModel, Qt, QModelIndex, QVariant
 from typing import List, Dict, Any, Optional
-from src.geoadjust.core.network.models import NetworkPoint
+from geoadjust.core.network.models import NetworkPoint
 
 class PointsTableModel(QAbstractTableModel):
     """Модель данных для таблицы пунктов"""

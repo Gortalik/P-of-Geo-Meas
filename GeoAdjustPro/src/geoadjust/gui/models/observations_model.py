@@ -7,7 +7,7 @@
 
 from PyQt5.QtCore import QAbstractTableModel, Qt, QModelIndex, QVariant
 from typing import List, Dict, Any, Optional
-from src.geoadjust.core.network.models import Observation
+from geoadjust.core.network.models import Observation
 
 class ObservationsTableModel(QAbstractTableModel):
     """Модель данных для таблицы измерений"""

@@ -32,7 +32,7 @@ class WelcomeDialog(QDialog):
         
         # Установка стиля
         self.setStyleSheet("""
-            QDialog {
+            QWidget {
                 background-color: qlineargradient(
                     x1:0, y1:0, x2:1, y2:1,
                     stop:0 #f0f4f8, stop:1 #e6e9ed
@@ -100,30 +100,40 @@ class WelcomeDialog(QDialog):
         layout.setContentsMargins(40, 30, 40, 30)
         layout.setSpacing(20)
         
-        # Основной фрейм
+        # Основной фрейм с явным указанием цвета фона и текста
         main_frame = QFrame()
         main_frame.setObjectName("main_frame")
-        main_frame.setStyleSheet("background-color: white; border-radius: 10px;")
+        main_frame.setAutoFillBackground(True)
+        main_frame.setStyleSheet("""
+            QFrame#main_frame {
+                background-color: white;
+                border-radius: 10px;
+                color: #2c3e50;
+            }
+        """)
         frame_layout = QVBoxLayout(main_frame)
         frame_layout.setContentsMargins(40, 30, 40, 30)
         frame_layout.setSpacing(25)
         
-        # Заголовок
+        # Заголовок с явным указанием цвета
         title_label = QLabel("P-of-Geo-Meas")
         title_label.setObjectName("title")
         title_label.setAlignment(Qt.AlignCenter)
+        title_label.setStyleSheet("color: #2c3e50; font-size: 36px; font-weight: bold;")
         frame_layout.addWidget(title_label)
         
-        # Подзаголовок
+        # Подзаголовок с явным указанием цвета
         subtitle_label = QLabel("Профессиональная система уравнивания геодезических сетей")
         subtitle_label.setObjectName("subtitle")
         subtitle_label.setAlignment(Qt.AlignCenter)
+        subtitle_label.setStyleSheet("color: #7f8c8d; font-size: 16px;")
         frame_layout.addWidget(subtitle_label)
         
         frame_layout.addSpacing(10)
         
         # Кнопки основных действий
         buttons_frame = QFrame()
+        buttons_frame.setStyleSheet("background: transparent;")
         buttons_layout = QVBoxLayout(buttons_frame)
         buttons_layout.setSpacing(15)
         buttons_layout.setContentsMargins(0, 0, 0, 0)
@@ -151,7 +161,7 @@ class WelcomeDialog(QDialog):
             
             recent_label = QLabel("📁 Недавние проекты:")
             recent_label.setFont(QFont("Arial", 12, QFont.Bold))
-            recent_label.setStyleSheet("color: #2c3e50; margin-top: 10px;")
+            recent_label.setStyleSheet("color: #2c3e50; margin-top: 10px; font-weight: bold;")
             frame_layout.addWidget(recent_label)
             
             for project_path in self.recent_projects[:5]:  # Максимум 5 проектов
@@ -166,10 +176,11 @@ class WelcomeDialog(QDialog):
                 )
                 frame_layout.addWidget(recent_btn)
         
-        # Информация о версии
+        # Информация о версии с явным цветом
         version_label = QLabel("Версия 1.0.0 • © 2026 GeoAdjust Team")
         version_label.setObjectName("version")
         version_label.setAlignment(Qt.AlignCenter)
+        version_label.setStyleSheet("color: #95a5a6; font-size: 11px;")
         frame_layout.addWidget(version_label)
         
         layout.addWidget(main_frame)

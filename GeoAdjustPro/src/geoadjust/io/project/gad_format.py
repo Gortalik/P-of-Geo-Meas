@@ -250,8 +250,21 @@ class GADProject:
     @classmethod
     def load(cls, project_path: Path) -> 'GADProject':
         """Загрузка проекта"""
-        if not project_path.exists() or not project_path.is_dir():
+        # Если путь указывает на файл .gadproj, извлекаем родительскую директорию
+        if project_path.is_file() and project_path.suffix == '.gadproj':
+            project_path = project_path.parent
+        
+        # Проверяем, что путь существует и является директорией
+        if not project_path.exists():
             raise FileNotFoundError(f"Проект не найден: {project_path}")
+        
+        if not project_path.is_dir():
+            raise FileNotFoundError(f"Путь должен указывать на директорию проекта: {project_path}")
+        
+        # Проверка наличия файла project.gadproj внутри директории
+        metadata_file = project_path / "project.gadproj"
+        if not metadata_file.exists():
+            raise FileNotFoundError(f"Неверный формат проекта: отсутствует файл project.gadproj в {project_path}")
         
         # Создание экземпляра проекта
         project = cls("", project_path)

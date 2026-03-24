@@ -55,7 +55,7 @@ def test_core_imports():
         from geoadjust.core.adjustment.free_network import FreeNetworkAdjustment
         print("✓ geoadjust.core.adjustment.free_network")
         
-        from geoadjust.core.adjustment.robust_methods import RobustEstimator
+        from geoadjust.core.adjustment.robust_methods import RobustMethods
         print("✓ geoadjust.core.adjustment.robust_methods")
         
         return True
@@ -463,7 +463,7 @@ def test_robust_estimator():
     print_section("14. Тест робастного оценивания")
     
     try:
-        from geoadjust.core.adjustment.robust_methods import RobustEstimator
+        from geoadjust.core.adjustment.robust_methods import RobustMethods
         from scipy import sparse
         import numpy as np
         
@@ -473,7 +473,7 @@ def test_robust_estimator():
         A = sparse.random(n, m, density=0.6, format='csr').toarray()
         l = np.random.randn(n) * 0.001
         
-        estimator = RobustEstimator(method='huber')
+        estimator = RobustMethods(method='huber')
         print(f"✓ Создан робастный оценщик (метод Хьюбера)")
         
         # Тест функции Хубера
@@ -482,7 +482,7 @@ def test_robust_estimator():
         print(f"✓ Веса Хубера вычислены: {weights_hub.shape}")
         
         # Тест функции Тьюки
-        estimator_tukey = RobustEstimator(method='tukey')
+        estimator_tukey = RobustMethods(method='tukey')
         weights_tuk = estimator_tukey.tukey_weights(residuals)
         print(f"✓ Веса Тьюки вычислены: {weights_tuk.shape}")
         

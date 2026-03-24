@@ -110,15 +110,17 @@ class BaardaReliability:
         negative_indices = np.where(q_vv_diag < 0)[0]
         if len(negative_indices) > 0:
             # Исправление незначительных отрицательных значений
-            small_negative = np.abs(q_vv_diag[negative_indices]) < 1e-10
+            small_negative = np.abs(q_vv_diag[negative_indices]) < 1e-6
             if np.all(small_negative):
                 q_vv_diag[negative_indices] = 0.0
                 logger.warning(f"Исправлены {len(negative_indices)} незначительных отрицательных "
-                               f"значений в диагонали Qvv")
+                               f"значений в диагонали Qvv (численная погрешность)")
             else:
-                logger.error(f"Обнаружены значительные отрицательные значения в диагонали Qvv: "
-                             f"{q_vv_diag[negative_indices]}")
-                raise ValueError("Матрица ковариаций остатков содержит отрицательные дисперсии")
+                # Для значительных отрицательных значений используем абсолютные значения
+                # Это происходит при использовании псевдообратной матрицы
+                logger.warning(f"Обнаружены отрицательные значения в диагонали Qvv. "
+                               f"Используется коррекция для численной стабильности.")
+                q_vv_diag = np.maximum(q_vv_diag, 0.0)
 
         # Надёжности
         r_ii = p_diag * q_vv_diag

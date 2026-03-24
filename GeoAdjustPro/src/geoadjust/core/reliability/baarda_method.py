@@ -235,35 +235,144 @@ class BaardaReliability:
             'num_invalid': np.sum(~valid_mask)
         }
 
+    def calculate_reliability_metrics(self, Qxx: np.ndarray = None) -> Dict[str, Any]:
+        """
+        Расширенный анализ надёжности по методике DynAdjust
+        
+        Вычисляет:
+        1. Ковариационную матрицу остатков (полная формула)
+        2. Внутреннюю надёжность (обнаружение грубых ошибок)
+        3. Внешнюю надёжность (влияние незамеченных грубых ошибок)
+        4. Статистический критерий обнаружения грубых ошибок
+        5. Анализ влияния измерений на координаты (влияние Леви)
+        
+        Параметры:
+        - Qxx: Ковариационная матрица неизвестных (если уже вычислена)
+        
+        Возвращает:
+        - Словарь с метриками надёжности
+        """
+        n = self.n  # Число измерений
+        
+        # 1. Ковариационная матрица измерений: Qll = P⁻¹
+        P_diag = self.P.diagonal()
+        valid_mask = P_diag > 1e-15
+        Qll_diag = np.zeros_like(P_diag)
+        Qll_diag[valid_mask] = 1.0 / P_diag[valid_mask]
+        
+        # 2. Ковариационная матрица остатков (полная формула)
+        # Qvv = Qll - A · Qxx · A^T
+        if Qxx is None:
+            Qxx = self.Qxx if self.Qxx is not None else None
+        
+        if Qxx is None:
+            self.compute_matrices()
+            Qxx = self.Qxx
+        
+        # Вычисляем только диагональные элементы для эффективности
+        diag_Qvv = Qll_diag.copy()
+        for i in range(min(n, 10000)):  # Ограничение для больших сетей
+            row = self.A[i].toarray().flatten()
+            diag_Qvv[i] -= np.sum(row**2 * Qxx.diagonal())
+        
+        # 3. Внутренняя надёжность (redundancy numbers по Баарду)
+        # r_i = 1 - q_vv_ii / q_ll_ii
+        redundancy = np.ones(n)
+        valid_qll = Qll_diag > 1e-15
+        redundancy[valid_qll] = 1.0 - diag_Qvv[valid_qll] / Qll_diag[valid_qll]
+        
+        # Ограничение диапазона [0, 1]
+        redundancy = np.clip(redundancy, 0.0, 1.0)
+        
+        # 4. Внешняя надёжность (влияние незамеченных грубых ошибок)
+        # δx_i = σ0 · √((1 - r_i) / r_i) для r_i > 0
+        external_reliability = np.zeros(n)
+        valid_r = redundancy > 0.001  # Избегаем деления на ноль
+        external_reliability[valid_r] = self.sigma0 * np.sqrt((1.0 - redundancy[valid_r]) / redundancy[valid_r])
+        
+        # 5. Статистический критерий обнаружения грубых ошибок
+        # Критическое значение для уровня значимости α=0.05 и β=0.001
+        # Используем нормальное распределение для больших сетей
+        critical_value = 3.0  # Для больших сетей (n > 100)
+        if n < 100:
+            critical_value = 3.5  # Для малых сетей
+        
+        # 6. Анализ влияния измерений на координаты (влияние Леви)
+        # influence[i, j] = влияние i-го измерения на j-й параметр
+        num_params = Qxx.shape[0] if Qxx is not None else 0
+        influence = np.zeros((n, num_params))
+        
+        if num_params > 0 and Qxx is not None:
+            for i in range(n):
+                row = self.A[i].toarray().flatten()
+                influence[i] = Qxx @ row.T
+        
+        # 7. Определение кандидатов на грубые ошибки
+        # Измерения с низкой избыточностью (r_i < 0.1)
+        gross_error_candidates = np.where(redundancy < 0.1)[0].tolist()
+        
+        # 8. Измерения с высокой внешней надёжностью (потенциально опасные)
+        unreliable_threshold = 0.05  # 5 см
+        unreliable_measurements = np.where(external_reliability > unreliable_threshold)[0].tolist()
+        
+        return {
+            'redundancy': redundancy,
+            'external_reliability': external_reliability,
+            'critical_value': critical_value,
+            'influence_matrix': influence,
+            'gross_error_candidates': gross_error_candidates,
+            'unreliable_measurements': unreliable_measurements,
+            'diag_Qvv': diag_Qvv,
+            'Qll_diag': Qll_diag,
+            'mean_redundancy': np.mean(redundancy),
+            'min_redundancy': np.min(redundancy),
+            'max_external_reliability': np.max(external_reliability),
+            'num_gross_error_candidates': len(gross_error_candidates),
+            'num_unreliable_measurements': len(unreliable_measurements)
+        }
+    
     def analyze(self) -> Dict[str, Any]:
-        """Полный анализ надёжности сети"""
+        """Полный анализ надёжности сети (расширенная версия по методике DynAdjust)"""
         # Вычисление матриц
         self.compute_matrices()
-
-        # Внутренняя надёжность
+        
+        # Внутренняя надёжность (классическая)
         internal_reliability = self.calculate_internal_reliability()
-
-        # Внешняя надёжность
-        external_reliability = self.calculate_external_reliability()
-
+        
+        # Внешняя надёжность (классическая)
+        external_reliability_classic = self.calculate_external_reliability()
+        
+        # Расширенные метрики надёжности по методике DynAdjust
+        reliability_metrics = self.calculate_reliability_metrics()
+        
         # Обнаружение грубых ошибок
         blunder_detection = self.detect_blunders(threshold=3.0)
-
+        
         # Статистика
         avg_internal_reliability = np.mean(internal_reliability)
         max_internal_reliability = np.max(internal_reliability)
         min_internal_reliability = np.min(internal_reliability)
-
+        
         return {
             'internal_reliability': internal_reliability,
-            'external_reliability': external_reliability,
+            'external_reliability': external_reliability_classic,
             'avg_internal_reliability': avg_internal_reliability,
             'max_internal_reliability': max_internal_reliability,
             'min_internal_reliability': min_internal_reliability,
             'blunder_detection': blunder_detection,
             'num_measurements': self.n,
             'num_unknowns': self.u,
-            'redundancy': self.r
+            'redundancy': self.r,
+            # Расширенные метрики DynAdjust
+            'redundancy_numbers': reliability_metrics['redundancy'],
+            'external_reliability_dynadjust': reliability_metrics['external_reliability'],
+            'critical_value': reliability_metrics['critical_value'],
+            'influence_matrix': reliability_metrics['influence_matrix'],
+            'gross_error_candidates': reliability_metrics['gross_error_candidates'],
+            'unreliable_measurements': reliability_metrics['unreliable_measurements'],
+            'mean_redundancy': reliability_metrics['mean_redundancy'],
+            'min_redundancy': reliability_metrics['min_redundancy'],
+            'max_external_reliability': reliability_metrics['max_external_reliability']
         }
 
 

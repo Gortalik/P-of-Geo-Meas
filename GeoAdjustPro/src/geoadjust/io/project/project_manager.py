@@ -46,6 +46,9 @@ class ProjectManager:
         # Установка настроек по умолчанию
         self._set_default_settings(project)
         
+        # Сохраняем проект сразу после создания для гарантии создания всех файлов структуры
+        project.save()
+        
         # Добавление в список недавних проектов
         self._add_to_recent_projects(project_name, str(project_dir))
         

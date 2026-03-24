@@ -399,28 +399,38 @@ class MainWindow(QMainWindow):
     
     def _create_main_area(self):
         """Создание центральной области"""
+        # Центральная область для главного окна уже создана через setCentralWidget
+        # Док-виджеты уже добавлены через addDockWidget в _create_dock_widgets
+        # Здесь только настраиваем splitter для центральных панелей
+        
+        # Создаем центральный виджет для основной рабочей области
+        central_content = QWidget()
+        central_layout = QVBoxLayout(central_content)
+        central_layout.setContentsMargins(0, 0, 0, 0)
+        
         self.main_splitter = QSplitter(Qt.Horizontal)
-        self.main_layout.addWidget(self.main_splitter)
+        central_layout.addWidget(self.main_splitter)
         
-        # Левая панель - таблицы данных
-        left_panel = QWidget()
-        left_layout = QVBoxLayout(left_panel)
+        # Левая панель - контейнеры для таблиц данных
+        left_container = QWidget()
+        left_layout = QVBoxLayout(left_container)
         left_layout.setContentsMargins(0, 0, 0, 0)
-        left_layout.addWidget(self.points_dock)
-        left_layout.addWidget(self.observations_dock)
+        left_layout.setSpacing(5)
         
-        # Правая панель - графика и свойства
-        right_panel = QWidget()
-        right_layout = QVBoxLayout(right_panel)
+        # Правая панель - контейнеры для графики и свойств
+        right_container = QWidget()
+        right_layout = QVBoxLayout(right_container)
         right_layout.setContentsMargins(0, 0, 0, 0)
-        right_layout.addWidget(self.plan_dock)
-        right_layout.addWidget(self.properties_dock)
+        right_layout.setSpacing(5)
         
-        self.main_splitter.addWidget(left_panel)
-        self.main_splitter.addWidget(right_panel)
+        self.main_splitter.addWidget(left_container)
+        self.main_splitter.addWidget(right_container)
         
         # Установка начальных размеров
         self.main_splitter.setSizes([400, 800])
+        
+        # Добавляем центральный контент в главный layout
+        self.main_layout.addWidget(central_content)
     
     def _load_workspace_config(self):
         """Загрузка конфигурации рабочей области"""
@@ -464,12 +474,42 @@ class MainWindow(QMainWindow):
         """Открытие существующего проекта"""
         logger.info("Открытие проекта")
         
-        file_path, _ = QFileDialog.getOpenFileName(
+        # Используем getExistingDirectory для выбора директории .gad
+        dir_path = QFileDialog.getExistingDirectory(
             self,
-            "Открыть проект",
+            "Выберите папку проекта (.gad)",
             "",
-            "GeoAdjust Project (*.gad);;Все файлы (*)"
+            QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks
         )
+        
+        if not dir_path:
+            return
+        
+        # Проверяем, что это действительно папка проекта .gad
+        path = Path(dir_path)
+        if not path.suffix.lower() == '.gad':
+            # Проверяем, содержит ли папка файл project.gadproj
+            project_file = path / 'project.gadproj'
+            if not project_file.exists():
+                QMessageBox.warning(
+                    self,
+                    "Неверный формат",
+                    f"Выбранная папка не является проектом GeoAdjust:\n{dir_path}\n\n"
+                    f"Пожалуйста, выберите папку с расширением .gad или папку, содержащую файл project.gadproj"
+                )
+                return
+            file_path = str(project_file)
+        else:
+            # Это папка .gad, проверяем наличие project.gadproj внутри
+            project_file = path / 'project.gadproj'
+            if not project_file.exists():
+                QMessageBox.warning(
+                    self,
+                    "Ошибка проекта",
+                    f"В папке проекта отсутствует файл project.gadproj:\n{dir_path}"
+                )
+                return
+            file_path = str(project_file)
         
         if file_path:
             try:

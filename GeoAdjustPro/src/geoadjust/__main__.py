@@ -152,6 +152,9 @@ def main():
                     project_name="Новый проект"
                 )
                 
+                # Сохранение проекта для создания всех файлов
+                project.save()
+                
                 # Создание главного окна с проектом
                 config = MainWindowConfig(
                     interface_type=InterfaceType.RIBBON,
@@ -176,16 +179,29 @@ def main():
         
         def open_existing_project():
             """Открытие существующего проекта"""
-            file_path, _ = QFileDialog.getOpenFileName(
+            # Используем getExistingDirectory для выбора папки .gad
+            # Так как проект - это директория с расширением .gad
+            dir_path = QFileDialog.getExistingDirectory(
                 None,
-                "Открыть проект",
+                "Открыть проект (выберите папку .gad)",
                 str(Path.home()),
-                "P-of-Geo-Meas Project (*.gad);;Все файлы (*)"
+                QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks
             )
             
-            if file_path:
+            if dir_path:
+                project_path = Path(dir_path)
+                # Проверяем, что выбранная директория имеет расширение .gad или содержит project.gadproj
+                if not (project_path.suffix == '.gad' or (project_path / 'project.gadproj').exists()):
+                    QMessageBox.warning(
+                        None,
+                        "Неверный формат проекта",
+                        "Выбранная папка не является проектом P-of-Geo-Meas.\n"
+                        "Проект должен быть папкой с расширением .gad и содержать файл project.gadproj."
+                    )
+                    return
+                
                 try:
-                    project = project_manager.open_project(Path(file_path))
+                    project = project_manager.open_project(project_path)
                     
                     # Создание главного окна с проектом
                     config = MainWindowConfig(
@@ -199,7 +215,7 @@ def main():
                     main_window.current_project = project
                     main_window.show()
                     
-                    logger.info(f"Проект открыт: {file_path}")
+                    logger.info(f"Проект открыт: {dir_path}")
                     
                 except Exception as e:
                     logger.error(f"Ошибка открытия проекта: {e}", exc_info=True)

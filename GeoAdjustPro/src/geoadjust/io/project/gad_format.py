@@ -249,10 +249,18 @@ class GADProject:
     
     @classmethod
     def load(cls, project_path: Path) -> 'GADProject':
-        """Загрузка проекта"""
+        """Загрузка проекта
+        
+        Поддерживает оба варианта пути:
+        - На директорию .gad (папка проекта)
+        - На файл project.gadproj внутри директории
+        """
         # Если путь указывает на файл .gadproj, извлекаем родительскую директорию
-        if project_path.is_file() and project_path.suffix == '.gadproj':
-            project_path = project_path.parent
+        if project_path.is_file():
+            if project_path.suffix == '.gadproj':
+                project_path = project_path.parent
+            else:
+                raise FileNotFoundError(f"Неверный тип файла: {project_path}. Ожидается .gadproj или директория .gad")
         
         # Проверяем, что путь существует и является директорией
         if not project_path.exists():

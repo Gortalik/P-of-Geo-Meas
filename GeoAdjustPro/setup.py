@@ -5,7 +5,12 @@ from pathlib import Path
 def get_version():
     version_file = Path(__file__).parent / "VERSION"
     if version_file.exists():
-        return version_file.read_text(encoding='utf-8').strip()
+        content = version_file.read_text(encoding='utf-8').strip()
+        # Извлекаем только версию из первой строки
+        for line in content.split('\n'):
+            if line.startswith('VERSION = '):
+                return line.split('=')[1].strip().strip('"')
+        return content.strip()
     return "1.0.0"
 
 # Чтение README для long_description

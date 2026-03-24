@@ -29,7 +29,7 @@ class ProjectManager:
         self._load_recent_projects()
     
     def create_project(self, project_path: Path, project_name: str) -> 'GADProject':
-        """Создание нового проекта"""
+        """Создание нового проекта с настройками по умолчанию"""
         from geoadjust.io.project.gad_format import GADProject
         
         # Создание директории проекта
@@ -43,13 +43,107 @@ class ProjectManager:
         project = GADProject(project_name, project_dir)
         project.create_structure()
         
+        # Установка настроек по умолчанию
+        self._set_default_settings(project)
+        
         # Добавление в список недавних проектов
         self._add_to_recent_projects(project_name, str(project_dir))
         
         self.current_project = project
-        logger.info(f"Создан новый проект: {project_name}")
+        logger.info(f"Создан новый проект с настройками по умолчанию: {project_name}")
         
         return project
+    
+    def _set_default_settings(self, project: 'GADProject'):
+        """Установка настроек проекта по умолчанию"""
+        import json
+        
+        settings_dir = project.project_dir / "settings"
+        
+        # 1. Система координат по умолчанию (СК-42, зона 7)
+        crs_settings = {
+            "base_crs": "SK42",
+            "zone": 7,
+            "central_meridian": 39.0,
+            "false_easting": 7500000.0,
+            "scale_factor": 1.0,
+            "height_system": "normal"
+        }
+        with open(settings_dir / "crs.json", 'w', encoding='utf-8') as f:
+            json.dump(crs_settings, f, indent=2, ensure_ascii=False)
+        
+        # 2. Библиотека приборов по умолчанию
+        instruments = {
+            "instruments": [
+                {
+                    "name": "Leica TS16",
+                    "type": "total_station",
+                    "manufacturer": "Leica",
+                    "model": "TS16",
+                    "angular_accuracy": 1.0,
+                    "distance_accuracy_a": 1.0,
+                    "distance_accuracy_b": 1.0,
+                    "centering_error": 2.0
+                },
+                {
+                    "name": "Trimble M3",
+                    "type": "total_station", 
+                    "manufacturer": "Trimble",
+                    "model": "M3",
+                    "angular_accuracy": 3.0,
+                    "distance_accuracy_a": 2.0,
+                    "distance_accuracy_b": 2.0,
+                    "centering_error": 3.0
+                }
+            ]
+        }
+        with open(settings_dir / "instruments.json", 'w', encoding='utf-8') as f:
+            json.dump(instruments, f, indent=2, ensure_ascii=False)
+        
+        # 3. Параметры уравнивания по умолчанию
+        adjustment_settings = {
+            "method": "classic",  # Классический МНК
+            "max_iterations": 10,
+            "convergence_threshold": 1e-6,
+            "robust_enabled": False,
+            "robust_method": "huber",
+            "robust_threshold": 2.5
+        }
+        with open(settings_dir / "adjustment.json", 'w', encoding='utf-8') as f:
+            json.dump(adjustment_settings, f, indent=2, ensure_ascii=False)
+        
+        # 4. Параметры предобработки по умолчанию
+        preprocessing_settings = {
+            "check_circle_closure": True,
+            "check_reciprocal_measurements": True,
+            "apply_atmospheric_corrections": True,
+            "apply_refraction": True,
+            "calculate_preliminary_coordinates": True
+        }
+        with open(settings_dir / "preprocessing.json", 'w', encoding='utf-8') as f:
+            json.dump(preprocessing_settings, f, indent=2, ensure_ascii=False)
+        
+        # 5. Нормативные классы по умолчанию
+        normative_classes = {
+            "classes": [
+                {
+                    "name": "4 класс",
+                    "max_circle_closure": 5.0,
+                    "max_relative_misalignment": 1.0 / 25000,
+                    "max_side_length": 2000
+                },
+                {
+                    "name": "1 разряд", 
+                    "max_circle_closure": 10.0,
+                    "max_relative_misalignment": 1.0 / 10000,
+                    "max_side_length": 5000
+                }
+            ]
+        }
+        with open(settings_dir / "normative_classes.json", 'w', encoding='utf-8') as f:
+            json.dump(normative_classes, f, indent=2, ensure_ascii=False)
+        
+        logger.info("Настройки проекта по умолчанию установлены")
     
     def open_project(self, project_path: Path) -> 'GADProject':
         """Открытие существующего проекта"""

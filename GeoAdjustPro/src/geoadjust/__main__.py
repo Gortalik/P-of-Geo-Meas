@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Точка входа в приложение GeoAdjust Pro
+Точка входа в приложение P-of-Geo-Meas
 
 Запуск приложения:
     python -m geoadjust
@@ -10,6 +10,7 @@
 """
 
 import sys
+import os
 import logging
 from pathlib import Path
 
@@ -27,8 +28,6 @@ REQUIRED_PACKAGES = {
     'PyQt5': 'PyQt5',
     'chardet': 'chardet',
     'networkx': 'networkx',
-    # pyproj удалён - используются собственные модули проекта (crs.transformer, crs.projection)
-    # Все преобразования координат работают через встроенные реализации без внешних зависимостей
     'pandas': 'pandas'
 }
 
@@ -55,7 +54,7 @@ def main():
     """Основная функция запуска приложения"""
     # Вывод информации о запуске в консоль
     print("=" * 60)
-    print("GeoAdjust Pro - Запуск приложения")
+    print("P-of-Geo-Meas - Запуск приложения")
     print("=" * 60)
     print(f"Версия Python: {sys.version}")
     print(f"Платформа: {sys.platform}")
@@ -69,17 +68,22 @@ def main():
         print()
         
         # Импорт утилит из центрального модуля
-        # Для совместимости с PyInstaller используем прямой импорт 'geoadjust'
         from geoadjust.utils import get_resource_path, setup_logging
         
         # Настройка логирования
         logger = setup_logging()
-        logger.info("Запуск GeoAdjust Pro...")
+        logger.info("=" * 60)
+        logger.info("ЗАПУСК P-OF-GEO-MEAS")
+        logger.info("=" * 60)
+        logger.info(f"Версия Python: {sys.version}")
+        logger.info(f"Платформа: {sys.platform}")
+        logger.info(f"Текущая директория: {Path.cwd()}")
+        logger.info("=" * 60)
         print("Настройка логирования завершена")
         print()
         
         try:
-            from PyQt5.QtWidgets import QApplication
+            from PyQt5.QtWidgets import QApplication, QFileDialog, QMessageBox
             from PyQt5.QtCore import Qt
             from PyQt5.QtGui import QIcon
         except ImportError as e:
@@ -95,7 +99,7 @@ def main():
         # Создание приложения
         print("Создание QApplication...")
         app = QApplication(sys.argv)
-        app.setApplicationName("GeoAdjust Pro")
+        app.setApplicationName("P-of-Geo-Meas")
         app.setOrganizationName("GeoAdjust Team")
         app.setApplicationVersion("1.0.0")
         app.setStyle('Fusion')
@@ -107,13 +111,13 @@ def main():
         font.setPointSize(10)
         app.setFont(font)
         
-        # Импорт главного окна
+        # Импорт менеджера проектов и приветственного диалога
         try:
-            # Для совместимости с PyInstaller используем относительные импорты
-            # В собранном приложении модуль доступен как 'geoadjust', а не 'src.geoadjust'
+            from geoadjust.io.project.project_manager import ProjectManager
+            from geoadjust.gui.welcome_dialog import WelcomeDialog
             from geoadjust.gui.main_window import MainWindow, MainWindowConfig, InterfaceType
         except ImportError as e:
-            logger.error(f"Ошибка импорта главного окна: {e}")
+            logger.error(f"Ошибка импорта компонентов: {e}")
             print(f"❌ Ошибка импорта: {e}")
             print("\nНажмите Enter для выхода...")
             try:
@@ -122,55 +126,138 @@ def main():
                 pass
             sys.exit(1)
         
-        # Создание конфигурации
-        config = MainWindowConfig(
-            interface_type=InterfaceType.RIBBON,
-            window_title="GeoAdjust Pro",
-            window_size=(1600, 900),
-            window_state="maximized",
-            theme="light"
-        )
+        # Создание менеджера проектов
+        project_manager = ProjectManager()
         
-        # Создание и показ главного окна
-        try:
-            print("Создание главного окна...")
-            window = MainWindow(config)
+        # Получение списка недавних проектов
+        recent_projects = [p['path'] for p in project_manager.get_recent_projects()]
+        
+        # Создание и показ приветственного диалога
+        print("Отображение приветственного диалога...")
+        welcome_dialog = WelcomeDialog(recent_projects=recent_projects)
+        
+        # Обработчики сигналов приветственного диалога
+        def create_new_project():
+            """Создание нового проекта с настройками по умолчанию"""
+            logger.info("Создание нового проекта с настройками по умолчанию")
             
-            # Попытка установить иконку приложения
             try:
-                icon_path = get_resource_path("gui/resources/icons/app_icon.ico")
-                if hasattr(icon_path, 'exists') and icon_path.exists():
-                    window.setWindowIcon(QIcon(str(icon_path)))
-                else:
-                    # Использовать стандартную иконку
-                    window.setWindowIcon(QIcon.fromTheme("applications-science"))
-                    logger.warning(f"Иконка не найдена: {icon_path}")
+                # Создание директории по умолчанию
+                default_project_path = Path.home() / "P-of-Geo-Meas Projects"
+                default_project_path.mkdir(parents=True, exist_ok=True)
+                
+                # Создание проекта с настройками по умолчанию
+                project = project_manager.create_project(
+                    project_path=default_project_path,
+                    project_name="Новый проект"
+                )
+                
+                # Создание главного окна с проектом
+                config = MainWindowConfig(
+                    interface_type=InterfaceType.RIBBON,
+                    window_title=f"P-of-Geo-Meas • Проект: {project.name}",
+                    window_size=(1600, 900),
+                    window_state="maximized",
+                    theme="light"
+                )
+                main_window = MainWindow(config)
+                main_window.current_project = project
+                main_window.show()
+                
+                logger.info("Новый проект создан и отображён в главном окне")
+                
             except Exception as e:
-                logger.error(f"Ошибка загрузки иконки: {e}")
-                # Продолжить без иконки
-            
-            print("✅ Главное окно создано")
-            print()
-            print("Показ окна приложения...")
-            window.show()
-            logger.info("Приложение GeoAdjust Pro запущено")
-            print("=" * 60)
-            print("🎉 ПРИЛОЖЕНИЕ УСПЕШНО ЗАПУЩЕНО!")
-            print("=" * 60)
-        except Exception as e:
-            logger.error(f"Ошибка создания главного окна: {e}")
-            print(f"❌ Ошибка создания окна: {e}")
-            import traceback
-            traceback.print_exc()
-            print("\nНажмите Enter для выхода...")
-            try:
-                input()
-            except:
-                pass
-            sys.exit(1)
+                logger.error(f"Ошибка создания проекта: {e}", exc_info=True)
+                QMessageBox.critical(
+                    None,
+                    "Ошибка создания проекта",
+                    f"Не удалось создать проект:\n{str(e)}"
+                )
         
-        # Запуск цикла событий
-        print("Запуск цикла событий Qt...")
+        def open_existing_project():
+            """Открытие существующего проекта"""
+            file_path, _ = QFileDialog.getOpenFileName(
+                None,
+                "Открыть проект",
+                str(Path.home()),
+                "P-of-Geo-Meas Project (*.gad);;Все файлы (*)"
+            )
+            
+            if file_path:
+                try:
+                    project = project_manager.open_project(Path(file_path))
+                    
+                    # Создание главного окна с проектом
+                    config = MainWindowConfig(
+                        interface_type=InterfaceType.RIBBON,
+                        window_title=f"P-of-Geo-Meas • Проект: {project.name}",
+                        window_size=(1600, 900),
+                        window_state="maximized",
+                        theme="light"
+                    )
+                    main_window = MainWindow(config)
+                    main_window.current_project = project
+                    main_window.show()
+                    
+                    logger.info(f"Проект открыт: {file_path}")
+                    
+                except Exception as e:
+                    logger.error(f"Ошибка открытия проекта: {e}", exc_info=True)
+                    QMessageBox.critical(
+                        None,
+                        "Ошибка открытия проекта",
+                        f"Не удалось открыть проект:\n{str(e)}"
+                    )
+        
+        def open_recent_project(project_path):
+            """Открытие недавнего проекта"""
+            try:
+                project = project_manager.open_project(Path(project_path))
+                
+                # Создание главного окна с проектом
+                config = MainWindowConfig(
+                    interface_type=InterfaceType.RIBBON,
+                    window_title=f"P-of-Geo-Meas • Проект: {project.name}",
+                    window_size=(1600, 900),
+                    window_state="maximized",
+                    theme="light"
+                )
+                main_window = MainWindow(config)
+                main_window.current_project = project
+                main_window.show()
+                
+                logger.info(f"Недавний проект открыт: {project_path}")
+                
+            except Exception as e:
+                logger.error(f"Ошибка открытия недавнего проекта: {e}", exc_info=True)
+                QMessageBox.critical(
+                    None,
+                    "Ошибка открытия проекта",
+                    f"Не удалось открыть проект:\n{str(e)}"
+                )
+        
+        # Подключение сигналов
+        welcome_dialog.new_project_requested.connect(create_new_project)
+        welcome_dialog.open_project_requested.connect(open_existing_project)
+        welcome_dialog.recent_project_requested.connect(open_recent_project)
+        
+        # Отображение приветственного диалога
+        logger.info("Отображение приветственного диалога")
+        welcome_dialog.exec_()
+        
+        # Если диалог закрыт без выбора действия - выйти
+        if not welcome_dialog.result():
+            logger.info("Приложение закрыто пользователем из приветственного диалога")
+            print("=" * 60)
+            print("Приложение закрыто")
+            print("=" * 60)
+            sys.exit(0)
+        
+        # Запуск главного цикла приложения
+        logger.info("Запуск главного цикла приложения Qt")
+        print("=" * 60)
+        print("🎉 ПРИЛОЖЕНИЕ УСПЕШНО ЗАПУЩЕНО!")
+        print("=" * 60)
         exit_code = app.exec_()
         
         # Если произошла ошибка, оставляем консоль открытой для просмотра ошибки

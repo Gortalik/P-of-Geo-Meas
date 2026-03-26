@@ -40,6 +40,36 @@ class ProjectWizard(QWizard):
         self.setWindowTitle("Мастер создания проекта")
         self.resize(700, 500)
         
+        # Простая и надежная стилизация
+        self.setStyleSheet("""
+            QWizard {
+                background-color: #f0f0f0;
+            }
+            QWizard > QFrame {
+                background-color: #ffffff;
+            }
+            QLabel {
+                color: #000000;
+            }
+            QLineEdit, QTextEdit, QComboBox, QSpinBox, QDoubleSpinBox {
+                background-color: #ffffff;
+                border: 1px solid #cccccc;
+                padding: 4px;
+            }
+            QPushButton {
+                background-color: #ffffff;
+                border: 1px solid #cccccc;
+                padding: 6px 12px;
+                min-width: 75px;
+            }
+            QPushButton:hover {
+                background-color: #e0e0e0;
+            }
+            QRadioButton, QCheckBox {
+                color: #000000;
+            }
+        """)
+        
         # Настройка флагов
         self.setOption(QWizard.HaveHelpButton, False)
         self.setOption(QWizard.NoBackButtonOnStartPage, True)

@@ -30,64 +30,67 @@ class WelcomeDialog(QDialog):
         self.setFixedSize(900, 600)
         self.setModal(True)
         
-        # Установка стиля
+        # Установка стиля - простой и надежный стиль
         self.setStyleSheet("""
             QWidget {
-                background-color: qlineargradient(
-                    x1:0, y1:0, x2:1, y2:1,
-                    stop:0 #f0f4f8, stop:1 #e6e9ed
-                );
+                background-color: #f0f0f0;
             }
             QLabel {
-                color: #2c3e50;
+                color: #000000;
                 background: transparent;
             }
             QPushButton {
-                background-color: #3498db;
-                color: white;
-                border: none;
+                background-color: #ffffff;
+                color: #000000;
+                border: 2px solid #cccccc;
                 border-radius: 5px;
                 padding: 15px 30px;
                 font-size: 14px;
                 font-weight: bold;
+                text-align: center;
             }
             QPushButton:hover {
-                background-color: #2980b9;
+                background-color: #e0e0e0;
+                border: 2px solid #aaaaaa;
             }
             QPushButton:pressed {
-                background-color: #2472a4;
+                background-color: #d0d0d0;
+                border: 2px solid #999999;
             }
             QPushButton#secondary {
-                background-color: #95a5a6;
+                background-color: #f0f0f0;
             }
             QPushButton#secondary:hover {
-                background-color: #7f8c8d;
+                background-color: #e0e0e0;
             }
             QPushButton#recent {
-                background-color: #2ecc71;
+                background-color: #ffffff;
+                color: #000000;
                 text-align: left;
-                padding: 10px 15px;
+                padding: 10px 15px 10px 20px;
                 font-weight: normal;
                 font-size: 12px;
+                border: 1px solid #cccccc;
             }
             QPushButton#recent:hover {
-                background-color: #27ae60;
+                background-color: #f0f0f0;
             }
             QFrame#main_frame {
-                background-color: white;
+                background-color: #ffffff;
                 border-radius: 10px;
+                border: 1px solid #cccccc;
             }
             QLabel#title {
                 font-size: 36px;
                 font-weight: bold;
-                color: #2c3e50;
+                color: #000000;
             }
             QLabel#subtitle {
                 font-size: 16px;
-                color: #7f8c8d;
+                color: #666666;
             }
             QLabel#version {
-                color: #95a5a6;
+                color: #888888;
                 font-size: 11px;
             }
         """)
@@ -100,17 +103,9 @@ class WelcomeDialog(QDialog):
         layout.setContentsMargins(40, 30, 40, 30)
         layout.setSpacing(20)
         
-        # Основной фрейм с явным указанием цвета фона и текста
+        # Основной фрейм - стиль определен в родительском виджете
         main_frame = QFrame()
         main_frame.setObjectName("main_frame")
-        main_frame.setAutoFillBackground(True)
-        main_frame.setStyleSheet("""
-            QFrame#main_frame {
-                background-color: white;
-                border-radius: 10px;
-                color: #2c3e50;
-            }
-        """)
         frame_layout = QVBoxLayout(main_frame)
         frame_layout.setContentsMargins(40, 30, 40, 30)
         frame_layout.setSpacing(25)
@@ -139,14 +134,14 @@ class WelcomeDialog(QDialog):
         buttons_layout.setContentsMargins(0, 0, 0, 0)
         
         # Кнопка "Создать новый проект"
-        new_btn = QPushButton("✨ Создать новый проект")
+        new_btn = QPushButton("Создать новый проект")
         new_btn.setMinimumHeight(60)
         new_btn.setCursor(Qt.PointingHandCursor)
         new_btn.clicked.connect(self._on_new_project)
         buttons_layout.addWidget(new_btn)
         
         # Кнопка "Открыть проект"
-        open_btn = QPushButton("📂 Открыть проект")
+        open_btn = QPushButton("Открыть проект")
         open_btn.setMinimumHeight(60)
         open_btn.setObjectName("secondary")
         open_btn.setCursor(Qt.PointingHandCursor)
@@ -159,14 +154,15 @@ class WelcomeDialog(QDialog):
         if self.recent_projects:
             frame_layout.addSpacing(15)
             
-            recent_label = QLabel("📁 Недавние проекты:")
+            recent_label = QLabel("Недавние проекты:")
             recent_label.setFont(QFont("Arial", 12, QFont.Bold))
             recent_label.setStyleSheet("color: #2c3e50; margin-top: 10px; font-weight: bold;")
             frame_layout.addWidget(recent_label)
             
-            for project_path in self.recent_projects[:5]:  # Максимум 5 проектов
+            # Показываем только последние 2 проекта для лучшего отображения
+            for project_path in self.recent_projects[:2]:  # Максимум 2 проекта
                 project_name = os.path.basename(project_path)
-                recent_btn = QPushButton(f"  📄 {project_name}")
+                recent_btn = QPushButton(project_name)
                 recent_btn.setObjectName("recent")
                 recent_btn.setMinimumHeight(40)
                 recent_btn.setCursor(Qt.PointingHandCursor)

@@ -24,16 +24,16 @@ class RibbonGroup(QFrame):
         super().__init__(parent)
         self.title = title
         self.setFrameStyle(QFrame.StyledPanel)
-        self.setMinimumWidth(120)  # Минимальная ширина группы
+        self.setMinimumWidth(140)  # Увеличена минимальная ширина группы
         
         # Основной макет
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(5, 5, 5, 5)
+        layout.setContentsMargins(8, 8, 8, 8)  # Увеличены отступы
         layout.setSpacing(5)
         
         # Панель кнопок
         self.buttons_layout = QHBoxLayout()
-        self.buttons_layout.setSpacing(5)
+        self.buttons_layout.setSpacing(8)  # Увеличен интервал между кнопками
         layout.addLayout(self.buttons_layout)
         
         # Подпись группы
@@ -44,17 +44,18 @@ class RibbonGroup(QFrame):
         
         self.actions = []
     
-    def add_action(self, text: str, icon_name: Optional[str] = None, 
+    def add_action(self, text: str, icon_name: Optional[str] = None,
                    shortcut: Optional[str] = None, callback: Optional[Callable] = None):
         """Добавление действия в группу"""
         button = QToolButton()
         button.setText(text)
         button.setToolTip(text + (f" ({shortcut})" if shortcut else ""))
-        button.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Expanding)
+        button.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         button.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)  # Текст под иконкой
         button.setAutoRaise(False)  # Не делать кнопку "плоской"
-        button.setMinimumWidth(70)  # Минимальная ширина кнопки
-        button.setMinimumHeight(70)  # Минимальная высота кнопки
+        button.setMinimumWidth(80)  # Увеличена минимальная ширина кнопки
+        button.setMaximumWidth(100)  # Добавлена максимальная ширина
+        button.setMinimumHeight(75)  # Увеличена минимальная высота кнопки
         
         if icon_name:
             try:

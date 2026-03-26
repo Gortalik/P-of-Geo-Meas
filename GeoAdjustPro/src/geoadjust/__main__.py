@@ -16,7 +16,7 @@ from pathlib import Path
 
 # Проверка версии Python
 if sys.version_info < (3, 8):
-    print("❌ ТРЕБУЕТСЯ PYTHON 3.8 ИЛИ ВЫШЕ")
+    print("- ТРЕБУЕТСЯ PYTHON 3.8 ИЛИ ВЫШЕ")
     print(f"   Установлена версия: {sys.version}")
     sys.exit(1)
 
@@ -42,7 +42,7 @@ def check_dependencies():
             missing.append(package_name)
     
     if missing:
-        print("❌ ОТСУТСТВУЮТ НЕОБХОДИМЫЕ ЗАВИСИМОСТИ:")
+        print("- ОТСУТСТВУЮТ НЕОБХОДИМЫЕ ЗАВИСИМОСТИ:")
         for pkg in missing:
             print(f"   - {pkg}")
         print("\nУстановите зависимости командой:")
@@ -64,7 +64,7 @@ def main():
         # Проверка зависимостей
         print("Проверка зависимостей...")
         check_dependencies()
-        print("✅ Все зависимости найдены")
+        print("+ Все зависимости найдены")
         print()
         
         # Импорт утилит из центрального модуля
@@ -83,11 +83,11 @@ def main():
         print()
         
         try:
-            from PyQt5.QtWidgets import QApplication, QFileDialog, QMessageBox
+            from PyQt5.QtWidgets import QApplication, QFileDialog, QMessageBox, QDialog
             from PyQt5.QtCore import Qt
             from PyQt5.QtGui import QIcon
         except ImportError as e:
-            print(f"❌ Ошибка импорта PyQt5: {e}")
+            print(f"- Ошибка импорта PyQt5: {e}")
             print("Установите PyQt5: pip install PyQt5")
             print("\nНажмите Enter для выхода...")
             try:
@@ -102,8 +102,9 @@ def main():
         app.setApplicationName("P-of-Geo-Meas")
         app.setOrganizationName("GeoAdjust Team")
         app.setApplicationVersion("1.0.0")
+        # Установка кроссплатформенного стиля Fusion для надежности
         app.setStyle('Fusion')
-        print("✅ QApplication создан")
+        print("+ QApplication создан")
         print()
         
         # Настройка шрифтов
@@ -118,7 +119,7 @@ def main():
             from geoadjust.gui.main_window import MainWindow, MainWindowConfig, InterfaceType
         except ImportError as e:
             logger.error(f"Ошибка импорта компонентов: {e}")
-            print(f"❌ Ошибка импорта: {e}")
+            print(f"- Ошибка импорта: {e}")
             print("\nНажмите Enter для выхода...")
             try:
                 input()
@@ -136,9 +137,13 @@ def main():
         print("Отображение приветственного диалога...")
         welcome_dialog = WelcomeDialog(recent_projects=recent_projects)
         
+        # Переменная для хранения главного окна
+        main_window = None
+        
         # Обработчики сигналов приветственного диалога
         def create_new_project():
             """Создание нового проекта с настройками по умолчанию"""
+            nonlocal main_window
             logger.info("Создание нового проекта с настройками по умолчанию")
             
             try:
@@ -146,10 +151,20 @@ def main():
                 default_project_path = Path.home() / "P-of-Geo-Meas Projects"
                 default_project_path.mkdir(parents=True, exist_ok=True)
                 
-                # Создание проекта с настройками по умолчанию
+                # Проверка существования проекта с именем по умолчанию и генерация уникального имени
+                project_name = "Новый проект"
+                project_dir = default_project_path / f"{project_name}.gad"
+                counter = 1
+                
+                while project_dir.exists():
+                    project_name = f"Новый проект {counter}"
+                    project_dir = default_project_path / f"{project_name}.gad"
+                    counter += 1
+                
+                # Создание проекта с уникальным именем
                 project = project_manager.create_project(
                     project_path=default_project_path,
-                    project_name="Новый проект"
+                    project_name=project_name
                 )
                 
                 # Сохранение проекта для создания всех файлов
@@ -165,7 +180,6 @@ def main():
                 )
                 main_window = MainWindow(config)
                 main_window.current_project = project
-                main_window.show()
                 
                 logger.info("Новый проект создан и отображён в главном окне")
                 
@@ -179,6 +193,7 @@ def main():
         
         def open_existing_project():
             """Открытие существующего проекта"""
+            nonlocal main_window
             # Используем getExistingDirectory для выбора папки .gad
             # Так как проект - это директория с расширением .gad
             dir_path = QFileDialog.getExistingDirectory(
@@ -213,7 +228,6 @@ def main():
                     )
                     main_window = MainWindow(config)
                     main_window.current_project = project
-                    main_window.show()
                     
                     logger.info(f"Проект открыт: {dir_path}")
                     
@@ -227,6 +241,7 @@ def main():
         
         def open_recent_project(project_path):
             """Открытие недавнего проекта"""
+            nonlocal main_window
             try:
                 project = project_manager.open_project(Path(project_path))
                 
@@ -240,7 +255,6 @@ def main():
                 )
                 main_window = MainWindow(config)
                 main_window.current_project = project
-                main_window.show()
                 
                 logger.info(f"Недавний проект открыт: {project_path}")
                 
@@ -259,26 +273,32 @@ def main():
         
         # Отображение приветственного диалога
         logger.info("Отображение приветственного диалога")
-        welcome_dialog.exec_()
+        result = welcome_dialog.exec_()
         
         # Если диалог закрыт без выбора действия - выйти
-        if not welcome_dialog.result():
+        if result == QDialog.Rejected or main_window is None:
             logger.info("Приложение закрыто пользователем из приветственного диалога")
             print("=" * 60)
             print("Приложение закрыто")
             print("=" * 60)
             sys.exit(0)
         
+        # Показываем главное окно после закрытия приветственного диалога
+        if main_window:
+            main_window.show()
+            main_window.raise_()  # Поднимаем окно поверх других
+            main_window.activateWindow()  # Активируем окно
+        
         # Запуск главного цикла приложения
         logger.info("Запуск главного цикла приложения Qt")
         print("=" * 60)
-        print("🎉 ПРИЛОЖЕНИЕ УСПЕШНО ЗАПУЩЕНО!")
+        print("+ ПРИЛОЖЕНИЕ УСПЕШНО ЗАПУЩЕНО!")
         print("=" * 60)
         exit_code = app.exec_()
         
         # Если произошла ошибка, оставляем консоль открытой для просмотра ошибки
         if exit_code != 0:
-            print(f"\n❌ Приложение завершилось с кодом ошибки: {exit_code}")
+            print(f"\n- Приложение завершилось с кодом ошибки: {exit_code}")
             print("Нажмите Enter для выхода...")
             try:
                 input()
@@ -288,7 +308,7 @@ def main():
         sys.exit(exit_code)
         
     except Exception as e:
-        print(f"\n❌ Критическая ошибка: {e}")
+        print(f"\n- Критическая ошибка: {e}")
         import traceback
         traceback.print_exc()
         print("\nНажмите Enter для выхода...")

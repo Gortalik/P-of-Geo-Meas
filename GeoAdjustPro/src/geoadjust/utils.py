@@ -90,7 +90,7 @@ def setup_logging(
         log_dir.mkdir(exist_ok=True)
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         log_file = str(log_dir / f'geoadjust_{timestamp}.log')
-        print(f"📁 Логи сохраняются в: {log_file}")
+        print(f"+ Логи сохраняются в: {log_file}")
     elif log_file == '':
         log_file = None
     
@@ -101,9 +101,9 @@ def setup_logging(
             file_handler.setLevel(logging.DEBUG)
             file_handler.setFormatter(detailed_formatter)
             logger.addHandler(file_handler)
-            print(f"✅ Файловое логирование включено: {log_file}")
+            print(f"+ Файловое логирование включено: {log_file}")
         except Exception as e:
-            print(f"⚠️ Warning: Could not create log file: {e}")
+            print(f"- Warning: Could not create log file: {e}")
     
     # Обработчик для консоли
     if console_output:

@@ -2,9 +2,29 @@
 Виджет журнала событий для GeoAdjust Pro
 """
 
+import logging
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QTextEdit, QHBoxLayout, QPushButton
-from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtCore import Qt, pyqtSignal, QObject
 from PyQt5.QtGui import QTextCursor, QColor
+
+
+class QtLogHandler(logging.Handler, QObject):
+    """Обработчик логов для Qt виджета"""
+    
+    log_signal = pyqtSignal(str, str)  # message, level
+    
+    def __init__(self):
+        logging.Handler.__init__(self)
+        QObject.__init__(self)
+        
+    def emit(self, record):
+        """Отправка лог-записи"""
+        try:
+            msg = self.format(record)
+            level = record.levelname
+            self.log_signal.emit(msg, level)
+        except Exception:
+            self.handleError(record)
 
 
 class LogWidget(QWidget):
@@ -23,6 +43,10 @@ class LogWidget(QWidget):
         self.log_text.setFontPointSize(9)
         
         layout.addWidget(self.log_text)
+        
+        # Создание обработчика логов
+        self.log_handler = None
+        self._setup_logging()
         
         # Панель инструментов
         toolbar = QHBoxLayout()
@@ -57,6 +81,23 @@ class LogWidget(QWidget):
         toolbar.addWidget(self.filter_error_check)
         
         layout.addLayout(toolbar)
+    
+    def _setup_logging(self):
+        """Настройка перехвата логов Python"""
+        self.log_handler = QtLogHandler()
+        self.log_handler.log_signal.connect(self._handle_log_message)
+        
+        # Добавление обработчика к корневому логгеру
+        root_logger = logging.getLogger()
+        root_logger.addHandler(self.log_handler)
+        
+        # Форматирование
+        formatter = logging.Formatter('%(name)s - %(message)s')
+        self.log_handler.setFormatter(formatter)
+    
+    def _handle_log_message(self, message: str, level: str):
+        """Обработка лог-сообщения из Python logging"""
+        self.log_message(message, level)
     
     def log_message(self, message: str, level: str = "INFO"):
         """Добавление сообщения в журнал"""

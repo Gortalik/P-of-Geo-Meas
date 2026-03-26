@@ -233,6 +233,10 @@ class ObservationsTableView(QTableView):
             items = [QStandardItem(str(val)) for val in row_data]
             self.model.appendRow(items)
     
+    def update_data(self, observations: list):
+        """Обновление данных таблицы (алиас для load_from_data)"""
+        self.load_from_data(observations)
+    
     def get_selected_observations(self) -> list:
         """Получение выбранных измерений"""
         selected_rows = self.selectionModel().selectedRows()

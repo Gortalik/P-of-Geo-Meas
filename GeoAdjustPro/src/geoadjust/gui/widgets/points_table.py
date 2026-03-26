@@ -214,6 +214,10 @@ class PointsTableView(QTableView):
             items = [QStandardItem(str(val)) for val in row_data]
             self.model.appendRow(items)
     
+    def update_data(self, points: list):
+        """Обновление данных таблицы (алиас для load_from_data)"""
+        self.load_from_data(points)
+    
     def get_selected_points(self) -> list:
         """Получение выбранных пунктов"""
         selected_rows = self.selectionModel().selectedRows()

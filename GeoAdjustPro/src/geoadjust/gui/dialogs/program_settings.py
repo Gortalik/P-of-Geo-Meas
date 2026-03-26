@@ -113,7 +113,10 @@ class ProgramSettingsDialog(QDialog):
         self.splash_check.setChecked(True)
         layout.addRow("", self.splash_check)
         
-        layout.addStretch()
+        # QFormLayout не имеет метода addStretch, используем spacer
+        from PyQt5.QtWidgets import QSpacerItem, QSizePolicy
+        spacer = QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
+        layout.addItem(spacer)
         
         return tab
     

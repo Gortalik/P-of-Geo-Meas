@@ -69,6 +69,21 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(self.config.window_title)
         self._load_icon()
         
+        # Установка простого стиля для надежности
+        self.setStyleSheet("""
+            QMainWindow {
+                background-color: #f0f0f0;
+            }
+            QMenuBar {
+                background-color: #e0e0e0;
+                border-bottom: 1px solid #cccccc;
+            }
+            QStatusBar {
+                background-color: #e0e0e0;
+                border-top: 1px solid #cccccc;
+            }
+        """)
+        
         if self.config.window_state == "maximized":
             self.setWindowState(Qt.WindowMaximized)
         else:
@@ -165,6 +180,31 @@ class MainWindow(QMainWindow):
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
         
+        # Меню Данные
+        data_menu = menu_bar.addMenu("Данные")
+        
+        # Импорт
+        import_file_action = QAction("Импорт из файла...", self)
+        import_file_action.setShortcut("Ctrl+I")
+        import_file_action.triggered.connect(self._import_file)
+        data_menu.addAction(import_file_action)
+        
+        import_instrument_action = QAction("Импорт из прибора...", self)
+        import_instrument_action.triggered.connect(self._import_from_instrument)
+        data_menu.addAction(import_instrument_action)
+        
+        data_menu.addSeparator()
+        
+        # Экспорт
+        export_file_action = QAction("Экспорт в файл...", self)
+        export_file_action.setShortcut("Ctrl+E")
+        export_file_action.triggered.connect(self._export_file)
+        data_menu.addAction(export_file_action)
+        
+        export_credo_action = QAction("Экспорт в КРЕДО...", self)
+        export_credo_action.triggered.connect(self._export_to_credo)
+        data_menu.addAction(export_credo_action)
+        
         # Меню Редактирование
         edit_menu = menu_bar.addMenu("Редактирование")
         
@@ -185,6 +225,37 @@ class MainWindow(QMainWindow):
         paste_action = QAction("Вставить", self)
         paste_action.setShortcut("Ctrl+V")
         edit_menu.addAction(paste_action)
+        
+        edit_menu.addSeparator()
+        
+        # Добавление данных
+        add_point_action = QAction("Добавить пункт", self)
+        add_point_action.setShortcut("Ctrl+P")
+        add_point_action.triggered.connect(self._add_point)
+        edit_menu.addAction(add_point_action)
+        
+        add_obs_action = QAction("Добавить измерение", self)
+        add_obs_action.setShortcut("Ctrl+M")
+        add_obs_action.triggered.connect(self._add_observation)
+        edit_menu.addAction(add_obs_action)
+        
+        # Меню Вид
+        view_menu = menu_bar.addMenu("Вид")
+        
+        scheme_action = QAction("Схема сети", self)
+        scheme_action.setShortcut("F5")
+        scheme_action.triggered.connect(self._show_scheme)
+        view_menu.addAction(scheme_action)
+        
+        view_menu.addSeparator()
+        
+        # Панели
+        panels_menu = view_menu.addMenu("Панели")
+        panels_menu.addAction("Пункты ПВО")
+        panels_menu.addAction("Измерения")
+        panels_menu.addAction("План")
+        panels_menu.addAction("Журнал")
+        panels_menu.addAction("Свойства")
         
         # Меню Обработка
         process_menu = menu_bar.addMenu("Обработка")
@@ -764,39 +835,39 @@ class MainWindow(QMainWindow):
         logger.info("ЗАПУСК ИМПОРТА ДАННЫХ ИЗ ФАЙЛА")
         logger.info("=" * 60)
         
+        if not self.current_project:
+            QMessageBox.warning(self, "Предупреждение", "Сначала создайте или откройте проект")
+            return
+        
         try:
-            file_path, selected_filter = QFileDialog.getOpenFileName(
-                self,
-                "Импорт данных",
-                "",
-                "Все поддерживаемые файлы (*.txt *.csv *.dat *.xml *.json *.gpf *.tpf);;"
-                "Текстовые файлы (*.txt);;"
-                "CSV файлы (*.csv);;"
-                "DAT файлы (*.dat);;"
-                "XML файлы (*.xml);;"
-                "JSON файлы (*.json);;"
-                "Файлы ГЕОМИР (*.gpf);;"
-                "Файлы CREDO (*.tpf);;"
-                "Все файлы (*)"
-            )
+            from .dialogs.import_dialog import ImportDialog
             
-            if file_path:
-                logger.info(f"Выбран файл для импорта: {file_path}")
+            dialog = ImportDialog(self)
+            if dialog.exec_() == QDialog.Accepted:
+                imported_data = dialog.get_imported_data()
                 
-                # Проверка существования файла
-                import os
-                if not os.path.exists(file_path):
-                    logger.error(f"Файл не найден: {file_path}")
-                    QMessageBox.critical(self, "Ошибка", f"Файл не найден:\n{file_path}")
-                    return
-                
-                logger.info(f"Размер файла: {os.path.getsize(file_path)} байт")
-                
-                # TODO: Реализация импорта в зависимости от типа файла
-                logger.info(f"Тип файла определяется по расширению: {selected_filter}")
-                
-                QMessageBox.information(self, "Импорт", f"Файл выбран:\n{file_path}\n\nФункция импорта в разработке")
-                logger.info("Импорт файла завершен (заглушка)")
+                if imported_data:
+                    # Добавление данных в проект
+                    points = imported_data.get('points', [])
+                    observations = imported_data.get('observations', [])
+                    
+                    # Обновление проекта
+                    if points:
+                        for point in points:
+                            self.current_project.add_point(point)
+                    
+                    if observations:
+                        for obs in observations:
+                            self.current_project.add_observation(obs)
+                    
+                    # Обновление интерфейса
+                    self._refresh_data_views()
+                    
+                    logger.info(f"Импортировано: {len(points)} пунктов, {len(observations)} измерений")
+                    self.statusBar().showMessage(
+                        f"Импортировано: {len(points)} пунктов, {len(observations)} измерений",
+                        5000
+                    )
                 
         except Exception as e:
             logger.error(f"ОШИБКА при импорте файла: {e}", exc_info=True)
@@ -814,24 +885,10 @@ class MainWindow(QMainWindow):
             return
         
         try:
-            file_path, _ = QFileDialog.getSaveFileName(
-                self,
-                "Экспорт данных",
-                "",
-                "Текстовые файлы (*.txt);;"
-                "CSV файлы (*.csv);;"
-                "XML файлы (*.xml);;"
-                "JSON файлы (*.json);;"
-                "Все файлы (*)"
-            )
+            from .dialogs.export_dialog import ExportDialog
             
-            if file_path:
-                logger.info(f"Выбран путь для экспорта: {file_path}")
-                
-                # TODO: Реализация экспорта данных
-                logger.info("Экспорт данных в разработке")
-                QMessageBox.information(self, "Экспорт", f"Данные будут экспортированы в:\n{file_path}\n\nФункция экспорта в разработке")
-                logger.info("Экспорт файла завершен (заглушка)")
+            dialog = ExportDialog(self.current_project, self)
+            dialog.exec_()
                 
         except Exception as e:
             logger.error(f"ОШИБКА при экспорте файла: {e}", exc_info=True)
@@ -882,45 +939,512 @@ class MainWindow(QMainWindow):
             logger.error(f"ОШИБКА при импорте из прибора: {e}", exc_info=True)
             QMessageBox.critical(self, "Ошибка", f"Ошибка при импорте из прибора:\n{str(e)}")
     
+    def _add_point(self):
+        """Добавление нового пункта"""
+        if not self.current_project:
+            QMessageBox.warning(self, "Предупреждение", "Сначала создайте или откройте проект")
+            return
+        
+        from .dialogs.point_editor import PointEditorDialog
+        
+        dialog = PointEditorDialog(parent=self)
+        if dialog.exec_() == QDialog.Accepted:
+            point_data = dialog.get_point_data()
+            self.current_project.add_point(point_data)
+            self._refresh_data_views()
+            logger.info(f"Добавлен пункт: {point_data['name']}")
+    
+    def _edit_point(self, point_data: Dict[str, Any]):
+        """Редактирование пункта"""
+        from .dialogs.point_editor import PointEditorDialog
+        
+        dialog = PointEditorDialog(point_data=point_data, parent=self)
+        if dialog.exec_() == QDialog.Accepted:
+            updated_data = dialog.get_point_data()
+            self.current_project.update_point(updated_data)
+            self._refresh_data_views()
+            logger.info(f"Обновлен пункт: {updated_data['name']}")
+    
+    def _delete_point(self, point_name: str):
+        """Удаление пункта"""
+        reply = QMessageBox.question(
+            self,
+            "Подтверждение",
+            f"Удалить пункт '{point_name}'?",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        
+        if reply == QMessageBox.Yes:
+            self.current_project.delete_point(point_name)
+            self._refresh_data_views()
+            logger.info(f"Удален пункт: {point_name}")
+    
+    def _add_observation(self):
+        """Добавление нового измерения"""
+        if not self.current_project:
+            QMessageBox.warning(self, "Предупреждение", "Сначала создайте или откройте проект")
+            return
+        
+        from .dialogs.observation_editor import ObservationEditorDialog
+        
+        # Получение списка доступных пунктов
+        points = self.current_project.get_points()
+        point_names = [p['name'] for p in points] if points else []
+        
+        dialog = ObservationEditorDialog(available_points=point_names, parent=self)
+        if dialog.exec_() == QDialog.Accepted:
+            obs_data = dialog.get_observation_data()
+            self.current_project.add_observation(obs_data)
+            self._refresh_data_views()
+            logger.info(f"Добавлено измерение: {obs_data['from_point']} -> {obs_data['to_point']}")
+    
+    def _edit_observation(self, obs_data: Dict[str, Any]):
+        """Редактирование измерения"""
+        from .dialogs.observation_editor import ObservationEditorDialog
+        
+        points = self.current_project.get_points()
+        point_names = [p['name'] for p in points] if points else []
+        
+        dialog = ObservationEditorDialog(
+            observation_data=obs_data,
+            available_points=point_names,
+            parent=self
+        )
+        if dialog.exec_() == QDialog.Accepted:
+            updated_data = dialog.get_observation_data()
+            self.current_project.update_observation(updated_data)
+            self._refresh_data_views()
+            logger.info(f"Обновлено измерение")
+    
+    def _delete_observation(self, obs_id: int):
+        """Удаление измерения"""
+        reply = QMessageBox.question(
+            self,
+            "Подтверждение",
+            f"Удалить измерение?",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        
+        if reply == QMessageBox.Yes:
+            self.current_project.delete_observation(obs_id)
+            self._refresh_data_views()
+            logger.info(f"Удалено измерение")
+    
+    def _show_scheme(self):
+        """Показать схему сети"""
+        if not self.current_project:
+            QMessageBox.warning(self, "Предупреждение", "Нет открытого проекта")
+            return
+        
+        from .dialogs.scheme_viewer import SchemeViewerDialog
+        
+        dialog = SchemeViewerDialog(project=self.current_project, parent=self)
+        dialog.exec_()
+    
+    def _refresh_data_views(self):
+        """Обновление представлений данных"""
+        if not self.current_project:
+            return
+        
+        # Обновление таблиц
+        if hasattr(self, 'points_table'):
+            points = self.current_project.get_points()
+            self.points_table.update_data(points)
+        
+        if hasattr(self, 'observations_table'):
+            observations = self.current_project.get_observations()
+            self.observations_table.update_data(observations)
+        
+        # Обновление плана
+        if hasattr(self, 'plan_view'):
+            self.plan_view.draw_network(self.current_project)
+    
     def _check_tolerances(self):
         """Контроль допусков"""
-        logger.info("Контроль допусков")
+        if not self.current_project:
+            QMessageBox.warning(self, "Предупреждение", "Нет открытого проекта")
+            return
+        
+        try:
+            from geoadjust.core.preprocessing.tolerances import ToleranceChecker
+            
+            checker = ToleranceChecker()
+            observations = self.current_project.get_observations()
+            
+            if not observations:
+                QMessageBox.information(self, "Информация", "В проекте нет измерений")
+                return
+            
+            results = checker.check_all(observations)
+            
+            # Показать результаты
+            violations = [r for r in results if not r['passed']]
+            
+            if violations:
+                msg = f"Обнаружено {len(violations)} нарушений допусков:\n\n"
+                for v in violations[:10]:  # Первые 10
+                    msg += f"- {v['description']}\n"
+                
+                if len(violations) > 10:
+                    msg += f"\n... и еще {len(violations) - 10}"
+                
+                QMessageBox.warning(self, "Нарушения допусков", msg)
+            else:
+                QMessageBox.information(self, "Контроль допусков", "Все измерения в пределах допусков")
+            
+            logger.info(f"Контроль допусков: {len(violations)} нарушений из {len(results)}")
+            
+        except Exception as e:
+            logger.error(f"Ошибка контроля допусков: {e}", exc_info=True)
+            QMessageBox.critical(self, "Ошибка", f"Ошибка контроля допусков:\n{str(e)}")
     
     def _apply_corrections(self):
         """Применение редукций"""
-        logger.info("Применение редукций")
+        if not self.current_project:
+            QMessageBox.warning(self, "Предупреждение", "Нет открытого проекта")
+            return
+        
+        try:
+            from geoadjust.core.preprocessing.module import PreprocessingModule
+            
+            preprocessor = PreprocessingModule()
+            observations = self.current_project.get_observations()
+            
+            if not observations:
+                QMessageBox.information(self, "Информация", "В проекте нет измерений")
+                return
+            
+            # Применение редукций
+            corrected_obs = preprocessor.apply_corrections(observations)
+            
+            # Обновление измерений в проекте
+            for obs in corrected_obs:
+                self.current_project.update_observation(obs)
+            
+            self._refresh_data_views()
+            
+            QMessageBox.information(
+                self,
+                "Редукции применены",
+                f"Редукции применены к {len(corrected_obs)} измерениям"
+            )
+            
+            logger.info(f"Применены редукции к {len(corrected_obs)} измерениям")
+            
+        except Exception as e:
+            logger.error(f"Ошибка применения редукций: {e}", exc_info=True)
+            QMessageBox.critical(self, "Ошибка", f"Ошибка применения редукций:\n{str(e)}")
     
     def _baarda_analysis(self):
         """Анализ надёжности по Баарду"""
-        logger.info("Анализ надёжности по Баарду")
+        if not self.current_project:
+            QMessageBox.warning(self, "Предупреждение", "Нет открытого проекта")
+            return
+        
+        try:
+            from geoadjust.core.reliability.baarda_method import BaardaMethod
+            
+            # Проверка наличия результатов уравнивания
+            if not hasattr(self.current_project, 'adjustment_result'):
+                QMessageBox.warning(
+                    self,
+                    "Предупреждение",
+                    "Сначала выполните уравнивание сети"
+                )
+                return
+            
+            baarda = BaardaMethod()
+            result = baarda.analyze(self.current_project.adjustment_result)
+            
+            # Показать результаты
+            msg = f"Анализ надёжности по Баарду:\n\n"
+            msg += f"Внутренняя надёжность: {result.get('internal_reliability', 'N/A')}\n"
+            msg += f"Внешняя надёжность: {result.get('external_reliability', 'N/A')}\n"
+            msg += f"Обнаружено подозрительных измерений: {len(result.get('suspicious', []))}"
+            
+            QMessageBox.information(self, "Анализ по Баарду", msg)
+            
+            logger.info("Выполнен анализ надёжности по Баарду")
+            
+        except Exception as e:
+            logger.error(f"Ошибка анализа по Баарду: {e}", exc_info=True)
+            QMessageBox.critical(self, "Ошибка", f"Ошибка анализа:\n{str(e)}")
     
     def _gross_error_search(self):
         """Поиск грубых ошибок"""
-        logger.info("Поиск грубых ошибок")
+        if not self.current_project:
+            QMessageBox.warning(self, "Предупреждение", "Нет открытого проекта")
+            return
+        
+        try:
+            from geoadjust.core.analysis.gross_errors import GrossErrorDetector
+            
+            if not hasattr(self.current_project, 'adjustment_result'):
+                QMessageBox.warning(
+                    self,
+                    "Предупреждение",
+                    "Сначала выполните уравнивание сети"
+                )
+                return
+            
+            detector = GrossErrorDetector()
+            errors = detector.detect(self.current_project.adjustment_result)
+            
+            if errors:
+                msg = f"Обнаружено {len(errors)} грубых ошибок:\n\n"
+                for err in errors[:10]:
+                    msg += f"- {err['description']}\n"
+                
+                if len(errors) > 10:
+                    msg += f"\n... и еще {len(errors) - 10}"
+                
+                QMessageBox.warning(self, "Грубые ошибки", msg)
+            else:
+                QMessageBox.information(self, "Поиск грубых ошибок", "Грубых ошибок не обнаружено")
+            
+            logger.info(f"Поиск грубых ошибок: обнаружено {len(errors)}")
+            
+        except Exception as e:
+            logger.error(f"Ошибка поиска грубых ошибок: {e}", exc_info=True)
+            QMessageBox.critical(self, "Ошибка", f"Ошибка поиска:\n{str(e)}")
     
     def _error_ellipses(self):
         """Визуализация эллипсов ошибок"""
-        logger.info("Визуализация эллипсов ошибок")
+        if not self.current_project:
+            QMessageBox.warning(self, "Предупреждение", "Нет открытого проекта")
+            return
+        
+        try:
+            from geoadjust.core.analysis.visualization import NetworkVisualizer
+            
+            if not hasattr(self.current_project, 'adjustment_result'):
+                QMessageBox.warning(
+                    self,
+                    "Предупреждение",
+                    "Сначала выполните уравнивание сети"
+                )
+                return
+            
+            visualizer = NetworkVisualizer()
+            fig = visualizer.plot_error_ellipses(self.current_project.adjustment_result)
+            
+            # Сохранение и показ
+            import tempfile
+            temp_file = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
+            fig.savefig(temp_file.name, dpi=150, bbox_inches='tight')
+            
+            # Открыть в системном просмотрщике
+            import os
+            os.startfile(temp_file.name)
+            
+            logger.info("Визуализация эллипсов ошибок создана")
+            
+        except Exception as e:
+            logger.error(f"Ошибка визуализации: {e}", exc_info=True)
+            QMessageBox.critical(self, "Ошибка", f"Ошибка визуализации:\n{str(e)}")
     
     def _heatmaps(self):
         """Визуализация тепловых карт"""
-        logger.info("Визуализация тепловых карт")
+        if not self.current_project:
+            QMessageBox.warning(self, "Предупреждение", "Нет открытого проекта")
+            return
+        
+        try:
+            from geoadjust.core.analysis.visualization import NetworkVisualizer
+            
+            if not hasattr(self.current_project, 'adjustment_result'):
+                QMessageBox.warning(
+                    self,
+                    "Предупреждение",
+                    "Сначала выполните уравнивание сети"
+                )
+                return
+            
+            visualizer = NetworkVisualizer()
+            fig = visualizer.plot_accuracy_heatmap(self.current_project.adjustment_result)
+            
+            # Сохранение и показ
+            import tempfile
+            temp_file = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
+            fig.savefig(temp_file.name, dpi=150, bbox_inches='tight')
+            
+            # Открыть в системном просмотрщике
+            import os
+            os.startfile(temp_file.name)
+            
+            logger.info("Тепловая карта создана")
+            
+        except Exception as e:
+            logger.error(f"Ошибка визуализации: {e}", exc_info=True)
+            QMessageBox.critical(self, "Ошибка", f"Ошибка визуализации:\n{str(e)}")
     
     def _coordinate_schedule(self):
         """Формирование ведомости координат"""
-        logger.info("Формирование ведомости координат")
+        if not self.current_project:
+            QMessageBox.warning(self, "Предупреждение", "Нет открытого проекта")
+            return
+        
+        try:
+            from geoadjust.io.export.dynadjust_report import ReportGenerator
+            
+            generator = ReportGenerator()
+            points = self.current_project.get_points()
+            
+            if not points:
+                QMessageBox.information(self, "Информация", "В проекте нет пунктов")
+                return
+            
+            # Выбор файла для сохранения
+            file_path, _ = QFileDialog.getSaveFileName(
+                self,
+                "Сохранить ведомость координат",
+                "",
+                "PDF файлы (*.pdf);;Excel файлы (*.xlsx);;Все файлы (*)"
+            )
+            
+            if file_path:
+                generator.generate_coordinate_schedule(points, file_path)
+                QMessageBox.information(
+                    self,
+                    "Успех",
+                    f"Ведомость координат сохранена:\n{file_path}"
+                )
+                logger.info(f"Ведомость координат сохранена: {file_path}")
+            
+        except Exception as e:
+            logger.error(f"Ошибка формирования ведомости: {e}", exc_info=True)
+            QMessageBox.critical(self, "Ошибка", f"Ошибка формирования ведомости:\n{str(e)}")
     
     def _correction_schedule(self):
         """Формирование ведомости поправок"""
-        logger.info("Формирование ведомости поправок")
+        if not self.current_project:
+            QMessageBox.warning(self, "Предупреждение", "Нет открытого проекта")
+            return
+        
+        try:
+            from geoadjust.io.export.dynadjust_report import ReportGenerator
+            
+            if not hasattr(self.current_project, 'adjustment_result'):
+                QMessageBox.warning(
+                    self,
+                    "Предупреждение",
+                    "Сначала выполните уравнивание сети"
+                )
+                return
+            
+            generator = ReportGenerator()
+            
+            # Выбор файла для сохранения
+            file_path, _ = QFileDialog.getSaveFileName(
+                self,
+                "Сохранить ведомость поправок",
+                "",
+                "PDF файлы (*.pdf);;Excel файлы (*.xlsx);;Все файлы (*)"
+            )
+            
+            if file_path:
+                generator.generate_correction_schedule(
+                    self.current_project.adjustment_result,
+                    file_path
+                )
+                QMessageBox.information(
+                    self,
+                    "Успех",
+                    f"Ведомость поправок сохранена:\n{file_path}"
+                )
+                logger.info(f"Ведомость поправок сохранена: {file_path}")
+            
+        except Exception as e:
+            logger.error(f"Ошибка формирования ведомости: {e}", exc_info=True)
+            QMessageBox.critical(self, "Ошибка", f"Ошибка формирования ведомости:\n{str(e)}")
     
     def _gost_report(self):
         """Формирование отчёта по ГОСТ"""
-        logger.info("Формирование отчёта по ГОСТ 7.32-2017")
+        if not self.current_project:
+            QMessageBox.warning(self, "Предупреждение", "Нет открытого проекта")
+            return
+        
+        try:
+            from geoadjust.io.export.gost_report import GOSTReportGenerator
+            
+            if not hasattr(self.current_project, 'adjustment_result'):
+                QMessageBox.warning(
+                    self,
+                    "Предупреждение",
+                    "Сначала выполните уравнивание сети"
+                )
+                return
+            
+            generator = GOSTReportGenerator()
+            
+            # Выбор файла для сохранения
+            file_path, _ = QFileDialog.getSaveFileName(
+                self,
+                "Сохранить отчёт по ГОСТ",
+                "",
+                "PDF файлы (*.pdf);;DOCX файлы (*.docx);;Все файлы (*)"
+            )
+            
+            if file_path:
+                generator.generate_report(
+                    self.current_project,
+                    self.current_project.adjustment_result,
+                    file_path
+                )
+                QMessageBox.information(
+                    self,
+                    "Успех",
+                    f"Отчёт по ГОСТ 7.32-2017 сохранён:\n{file_path}"
+                )
+                logger.info(f"Отчёт по ГОСТ сохранён: {file_path}")
+            
+        except Exception as e:
+            logger.error(f"Ошибка формирования отчёта: {e}", exc_info=True)
+            QMessageBox.critical(self, "Ошибка", f"Ошибка формирования отчёта:\n{str(e)}")
     
     def _compliance_certificate(self):
         """Формирование сертификата соответствия"""
-        logger.info("Формирование сертификата соответствия")
+        if not self.current_project:
+            QMessageBox.warning(self, "Предупреждение", "Нет открытого проекта")
+            return
+        
+        try:
+            from geoadjust.io.export.gost_report import GOSTReportGenerator
+            
+            if not hasattr(self.current_project, 'adjustment_result'):
+                QMessageBox.warning(
+                    self,
+                    "Предупреждение",
+                    "Сначала выполните уравнивание сети"
+                )
+                return
+            
+            generator = GOSTReportGenerator()
+            
+            # Выбор файла для сохранения
+            file_path, _ = QFileDialog.getSaveFileName(
+                self,
+                "Сохранить сертификат соответствия",
+                "",
+                "PDF файлы (*.pdf);;Все файлы (*)"
+            )
+            
+            if file_path:
+                generator.generate_compliance_certificate(
+                    self.current_project,
+                    self.current_project.adjustment_result,
+                    file_path
+                )
+                QMessageBox.information(
+                    self,
+                    "Успех",
+                    f"Сертификат соответствия сохранён:\n{file_path}"
+                )
+                logger.info(f"Сертификат соответствия сохранён: {file_path}")
+            
+        except Exception as e:
+            logger.error(f"Ошибка формирования сертификата: {e}", exc_info=True)
+            QMessageBox.critical(self, "Ошибка", f"Ошибка формирования сертификата:\n{str(e)}")
     
     def _show_help(self):
         """Показать справку"""

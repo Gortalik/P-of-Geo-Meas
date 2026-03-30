@@ -801,9 +801,10 @@ class MainWindow(QMainWindow):
             self.mode_label.setText("Режим: робастное уравнивание")
             self.statusBar().showMessage("Выполняется робастное уравнивание...", 0)
             self.progress_bar.setVisible(True)
-            self.progress_bar.setRange(0, 0)
+            self.progress_bar.setRange(0, 100)
+            self.progress_bar.setValue(0)
             
-            from geoadjust.core.adjustment.robust_methods import RobustAdjustment
+            from geoadjust.core.adjustment.robust_methods import RobustMethods
             
             # Получение данных из проекта
             observations = self.current_project.get_observations()
@@ -814,19 +815,32 @@ class MainWindow(QMainWindow):
                 self._reset_ui_state()
                 return
             
-            # Робастное уравнивание
-            robust = RobustAdjustment()
-            result = robust.adjust(observations, control_points)
+            # Создание интеграции обработки если ещё не создана
+            if self.processing_integration is None:
+                from geoadjust.gui.processing.integration import ProcessingIntegration
+                self.processing_integration = ProcessingIntegration(self)
+                
+                # Подключение сигналов
+                self.processing_integration.progress_updated.connect(self._on_progress_updated)
+                self.processing_integration.processing_finished.connect(self._on_adjustment_finished)
+                self.processing_integration.processing_error.connect(self._on_adjustment_error)
             
-            # Сохранение результатов в проект
-            self.current_project.save_adjustment_result(result)
+            # Установка моделей данных
+            self.processing_integration.set_models(
+                self.points_table.model(),
+                self.observations_table.model()
+            )
             
-            # Обновление интерфейса
-            self._update_ui_with_results(result)
-            
-            sigma0 = result.get('sigma0', 0)
-            self.statusBar().showMessage(f"Робастное уравнивание выполнено: μ₀ = {sigma0:.6f}", 5000)
-            self._reset_ui_state()
+            # Запуск робастного уравнивания в отдельном потоке
+            from geoadjust.gui.processing.processing_thread import ProcessingThread
+            self.processing_thread = ProcessingThread(
+                self.processing_integration,
+                method='robust'
+            )
+            self.processing_thread.finished.connect(self._on_adjustment_finished)
+            self.processing_thread.error_occurred.connect(self._on_adjustment_error)
+            self.processing_thread.progress_updated.connect(self._on_progress_updated)
+            self.processing_thread.start()
             
         except Exception as e:
             QMessageBox.critical(self, "Ошибка", f"Ошибка при робастном уравнивании:\n{str(e)}")
@@ -1210,7 +1224,7 @@ class MainWindow(QMainWindow):
             return
         
         try:
-            from geoadjust.core.analysis.gross_errors import GrossErrorDetector
+            from geoadjust.core.analysis.gross_errors import GrossErrorAnalyzer
             
             if not hasattr(self.current_project, 'adjustment_result'):
                 QMessageBox.warning(
@@ -1220,8 +1234,24 @@ class MainWindow(QMainWindow):
                 )
                 return
             
-            detector = GrossErrorDetector()
-            errors = detector.detect(self.current_project.adjustment_result)
+            # Получение данных из результатов уравнивания
+            result = self.current_project.adjustment_result
+            A = result.get('A')
+            P = result.get('P')
+            V = result.get('residuals')
+            sigma0 = result.get('sigma0')
+            obs_ids = result.get('observations_ids', [])
+            
+            if A is None or P is None or V is None:
+                QMessageBox.warning(
+                    self,
+                    "Предупреждение",
+                    "Недостаточно данных для анализа грубых ошибок"
+                )
+                return
+            
+            analyzer = GrossErrorAnalyzer(A, P, V, sigma0, obs_ids)
+            errors = analyzer.detect_gross_errors()
             
             if errors:
                 msg = f"Обнаружено {len(errors)} грубых ошибок:\n\n"
@@ -1248,7 +1278,7 @@ class MainWindow(QMainWindow):
             return
         
         try:
-            from geoadjust.core.analysis.visualization import NetworkVisualizer
+            from geoadjust.core.analysis.visualization import Visualization
             
             if not hasattr(self.current_project, 'adjustment_result'):
                 QMessageBox.warning(
@@ -1258,8 +1288,12 @@ class MainWindow(QMainWindow):
                 )
                 return
             
-            visualizer = NetworkVisualizer()
-            fig = visualizer.plot_error_ellipses(self.current_project.adjustment_result)
+            # Получение данных о пунктах из результатов
+            result = self.current_project.adjustment_result
+            points = result.get('points', [])
+            
+            visualizer = Visualization()
+            fig = visualizer.plot_error_ellipses(points, show=False)
             
             # Сохранение и показ
             import tempfile
@@ -1283,7 +1317,7 @@ class MainWindow(QMainWindow):
             return
         
         try:
-            from geoadjust.core.analysis.visualization import NetworkVisualizer
+            from geoadjust.core.analysis.visualization import Visualization
             
             if not hasattr(self.current_project, 'adjustment_result'):
                 QMessageBox.warning(
@@ -1293,8 +1327,21 @@ class MainWindow(QMainWindow):
                 )
                 return
             
-            visualizer = NetworkVisualizer()
-            fig = visualizer.plot_accuracy_heatmap(self.current_project.adjustment_result)
+            # Получение ковариационной матрицы из результатов
+            result = self.current_project.adjustment_result
+            cov_matrix = result.get('covariance_matrix')
+            labels = result.get('point_ids', [])
+            
+            if cov_matrix is None:
+                QMessageBox.warning(
+                    self,
+                    "Предупреждение",
+                    "Ковариационная матрица недоступна"
+                )
+                return
+            
+            visualizer = Visualization()
+            fig = visualizer.plot_correlation_heatmap(cov_matrix, labels=labels, show=False)
             
             # Сохранение и показ
             import tempfile

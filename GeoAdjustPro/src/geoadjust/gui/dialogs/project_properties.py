@@ -779,19 +779,49 @@ class ProjectPropertiesDialog(QDialog):
     
     def _on_nav_item_clicked(self, item: QTreeWidgetItem, column: int):
         """Обработчик клика по элементу навигации"""
-        # Определение индекса страницы на основе пути в дереве
-        path = []
-        current = item
-        while current:
-            parent = current.parent()
-            if parent is None:
-                break
-            index = parent.indexOfChild(current)
-            path.insert(0, index)
-            current = parent
+        # Прямое сопоставление элементов дерева и страниц
+        parent = item.parent()
         
-        # Простое сопоставление для примера
-        page_index = sum(path)
+        if parent is None:
+            # Корневой элемент - не переключаем страницу
+            return
+        
+        # Получаем индекс родителя и элемента
+        parent_index = self.nav_tree.indexOfTopLevelItem(parent) if parent else 0
+        if parent is None:
+            child_index = self.nav_tree.indexOfTopLevelItem(item)
+        else:
+            child_index = parent.indexOfChild(item)
+        
+        # Вычисляем индекс страницы на основе структуры дерева
+        # Структура: 
+        # 1. Карточка проекта (3 подпункта: 0-2)
+        # 2. Система координат (3 подпункта: 3-5)
+        # 3. Инструменты (1 подпункт: 6)
+        # 4. Классы точности (1 подпункт: 7)
+        # 5. Предобработка (2 подпункта: 8-9)
+        # 6. Уравнивание (2 подпункта: 10-11)
+        # 7. Поиск ошибок (1 подпункт: 12)
+        # 8. Отчётность (1 подпункт: 13)
+        
+        page_mapping = {
+            (0, 0): 0,   # Общие сведения
+            (0, 1): 1,   # Ответственные лица
+            (0, 2): 2,   # Примечания
+            (1, 0): 3,   # Базовая геодезическая система
+            (1, 1): 4,   # Проекция на плоскость
+            (1, 2): 5,   # Система высот
+            (2, 0): 6,   # Список приборов
+            (3, 0): 7,   # Нормативные классы
+            (4, 0): 8,   # Поправки
+            (4, 1): 9,   # Допуски
+            (5, 0): 10,  # Метод уравнивания
+            (5, 1): 11,  # Итерационный процесс
+            (6, 0): 12,  # Поиск ошибок
+            (7, 0): 13,  # Отчётность
+        }
+        
+        page_index = page_mapping.get((parent_index, child_index), 0)
         if page_index < self.content_stack.count():
             self.content_stack.setCurrentIndex(page_index)
     

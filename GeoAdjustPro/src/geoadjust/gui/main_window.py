@@ -482,11 +482,8 @@ class MainWindow(QMainWindow):
         self.traverses_dock.setWidget(self.traverses_tree)
         self.addDockWidget(Qt.RightDockWidgetArea, self.traverses_dock)
         
-        # Окно "План"
-        self.plan_dock = QDockWidget("План", self)
+        # План создается как виджет для центральной области (не док-виджет)
         self.plan_view = PlanGraphicsView()
-        self.plan_dock.setWidget(self.plan_view)
-        self.addDockWidget(Qt.RightDockWidgetArea, self.plan_dock)
         
         # Окно "Журнал"
         self.log_dock = QDockWidget("Журнал", self)
@@ -520,6 +517,9 @@ class MainWindow(QMainWindow):
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(5)
         
+        # Центральная панель - План (основная рабочая область)
+        # План добавляется напрямую в splitter для отображения по центру
+        
         # Правая панель - контейнеры для графики и свойств
         right_container = QWidget()
         right_layout = QVBoxLayout(right_container)
@@ -527,10 +527,11 @@ class MainWindow(QMainWindow):
         right_layout.setSpacing(5)
         
         self.main_splitter.addWidget(left_container)
+        self.main_splitter.addWidget(self.plan_view)  # План по центру
         self.main_splitter.addWidget(right_container)
         
-        # Установка начальных размеров
-        self.main_splitter.setSizes([400, 800])
+        # Установка начальных размеров: левая панель, план (центр), правая панель
+        self.main_splitter.setSizes([200, 800, 200])
         
         # Добавляем центральный контент в главный layout
         self.main_layout.addWidget(central_content)

@@ -35,6 +35,38 @@ class PointsTableView(QTableView):
         
         # Двойной клик
         self.doubleClicked.connect(self._on_double_click)
+        
+        # Модель данных
+        self._setup_model()
+    
+    def _setup_model(self):
+        """Настройка модели данных"""
+        from PyQt5.QtGui import QStandardItemModel, QStandardItem
+        self.model = QStandardItemModel(0, 8, self)
+        self.model.setHorizontalHeaderLabels([
+            "ID", "Наименование", "Тип", "X (м)", "Y (м)", 
+            "H (м)", "Прибор", "Примечание"
+        ])
+        self.setModel(self.model)
+    
+    def update_data(self, points: list):
+        """Обновление данных таблицы"""
+        from PyQt5.QtGui import QStandardItem
+        self.model.setRowCount(0)
+        
+        for point in points:
+            row_data = [
+                point.get('id', ''),
+                point.get('name', ''),
+                point.get('type', 'FREE'),
+                str(point.get('x', '')),
+                str(point.get('y', '')),
+                str(point.get('h', '')),
+                point.get('instrument', ''),
+                point.get('notes', '')
+            ]
+            items = [QStandardItem(str(val)) for val in row_data]
+            self.model.appendRow(items)
     
     def _show_context_menu(self, position):
         """Показ контекстного меню"""
@@ -57,8 +89,8 @@ class PointsTableView(QTableView):
     def _on_double_click(self, index):
         """Обработка двойного клика"""
         row = index.row()
-        if self.model() and row >= 0:
-            point_id = self.model().index(row, 0).data()
+        if self.model and row >= 0:
+            point_id = self.model.index(row, 0).data()
             if point_id:
                 self.point_double_clicked.emit(point_id)
     
@@ -99,6 +131,40 @@ class ObservationsTableView(QTableView):
         
         # Двойной клик
         self.doubleClicked.connect(self._on_double_click)
+        
+        # Модель данных
+        self._setup_model()
+    
+    def _setup_model(self):
+        """Настройка модели данных"""
+        from PyQt5.QtGui import QStandardItemModel, QStandardItem
+        self.model = QStandardItemModel(0, 10, self)
+        self.model.setHorizontalHeaderLabels([
+            "ID", "Откуда", "Куда", "Тип", "Значение", 
+            "σ (априорная)", "Прибор", "Дата", "Время", "Примечание"
+        ])
+        self.setModel(self.model)
+    
+    def update_data(self, observations: list):
+        """Обновление данных таблицы"""
+        from PyQt5.QtGui import QStandardItem
+        self.model.setRowCount(0)
+        
+        for obs in observations:
+            row_data = [
+                str(obs.get('id', '')),
+                obs.get('from_point', ''),
+                obs.get('to_point', ''),
+                obs.get('obs_type', ''),
+                str(obs.get('value', '')),
+                str(obs.get('sigma_apriori', '')),
+                obs.get('instrument_name', ''),
+                obs.get('date', ''),
+                obs.get('time', ''),
+                obs.get('notes', '')
+            ]
+            items = [QStandardItem(str(val)) for val in row_data]
+            self.model.appendRow(items)
     
     def _show_context_menu(self, position):
         """Показ контекстного меню"""
@@ -121,8 +187,8 @@ class ObservationsTableView(QTableView):
     def _on_double_click(self, index):
         """Обработка двойного клика"""
         row = index.row()
-        if self.model() and row >= 0:
-            obs_id = self.model().index(row, 0).data()
+        if self.model and row >= 0:
+            obs_id = self.model.index(row, 0).data()
             if obs_id:
                 self.observation_double_clicked.emit(obs_id)
     

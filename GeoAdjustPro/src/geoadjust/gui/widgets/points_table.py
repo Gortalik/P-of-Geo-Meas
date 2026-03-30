@@ -5,9 +5,185 @@
 Реализует отображение и редактирование списка пунктов сети
 """
 
-from PyQt5.QtWidgets import QTableView, QAbstractItemView, QMenu, QAction
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTableView, 
+                             QAbstractItemView, QMenu, QAction, QPushButton, 
+                             QDialog, QFormLayout, QLineEdit, QComboBox, 
+                             QDialogButtonBox, QMessageBox, QLabel)
 from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QStandardItemModel, QStandardItem
+from PyQt5.QtGui import QStandardItemModel, QStandardItem, QIcon
+
+
+class ManualPointInputDialog(QDialog):
+    """Диалог ручного ввода пункта"""
+    
+    def __init__(self, parent=None, point_data=None):
+        super().__init__(parent)
+        self.setWindowTitle("Ввод пункта ПВО")
+        self.resize(400, 300)
+        
+        layout = QFormLayout(self)
+        
+        # ID пункта
+        self.id_edit = QLineEdit()
+        if point_data:
+            self.id_edit.setText(point_data.get('id', ''))
+        layout.addRow("ID пункта:", self.id_edit)
+        
+        # Наименование
+        self.name_edit = QLineEdit()
+        if point_data:
+            self.name_edit.setText(point_data.get('name', ''))
+        layout.addRow("Наименование:", self.name_edit)
+        
+        # Тип пункта
+        self.type_combo = QComboBox()
+        self.type_combo.addItems(["FIXED", "FREE", "APPROXIMATE"])
+        if point_data:
+            idx = self.type_combo.findText(point_data.get('type', 'FREE'))
+            if idx >= 0:
+                self.type_combo.setCurrentIndex(idx)
+        layout.addRow("Тип пункта:", self.type_combo)
+        
+        # Координата X
+        self.x_edit = QLineEdit()
+        if point_data:
+            self.x_edit.setText(str(point_data.get('x', '')))
+        layout.addRow("X (м):", self.x_edit)
+        
+        # Координата Y
+        self.y_edit = QLineEdit()
+        if point_data:
+            self.y_edit.setText(str(point_data.get('y', '')))
+        layout.addRow("Y (м):", self.y_edit)
+        
+        # Высота H
+        self.h_edit = QLineEdit()
+        if point_data:
+            self.h_edit.setText(str(point_data.get('h', '')))
+        layout.addRow("H (м):", self.h_edit)
+        
+        # Прибор
+        self.instrument_edit = QLineEdit()
+        if point_data:
+            self.instrument_edit.setText(point_data.get('instrument', ''))
+        layout.addRow("Прибор:", self.instrument_edit)
+        
+        # Примечание
+        self.notes_edit = QLineEdit()
+        if point_data:
+            self.notes_edit.setText(point_data.get('notes', ''))
+        layout.addRow("Примечание:", self.notes_edit)
+        
+        # Кнопки
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addRow(button_box)
+    
+    def get_point_data(self):
+        """Получение данных пункта"""
+        return {
+            'id': self.id_edit.text().strip(),
+            'name': self.name_edit.text().strip() or self.id_edit.text().strip(),
+            'type': self.type_combo.currentText(),
+            'x': self.x_edit.text().strip(),
+            'y': self.y_edit.text().strip(),
+            'h': self.h_edit.text().strip(),
+            'instrument': self.instrument_edit.text().strip(),
+            'notes': self.notes_edit.text().strip()
+        }
+
+
+class PointsTableWidget(QWidget):
+    """Виджет таблицы пунктов с кнопками управления"""
+    
+    # Сигналы
+    point_selected = pyqtSignal(str)
+    point_deleted = pyqtSignal(list)
+    point_added = pyqtSignal(dict)
+    point_edited = pyqtSignal(dict)
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._init_ui()
+    
+    def _init_ui(self):
+        """Инициализация интерфейса"""
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Панель кнопок
+        button_layout = QHBoxLayout()
+        
+        self.add_btn = QPushButton("➕ Добавить пункт")
+        self.add_btn.clicked.connect(self._add_point_manual)
+        button_layout.addWidget(self.add_btn)
+        
+        self.edit_btn = QPushButton("✏️ Редактировать")
+        self.edit_btn.clicked.connect(self._edit_point_manual)
+        button_layout.addWidget(self.edit_btn)
+        
+        self.delete_btn = QPushButton("🗑️ Удалить")
+        self.delete_btn.clicked.connect(self._delete_point)
+        button_layout.addWidget(self.delete_btn)
+        
+        button_layout.addStretch()
+        
+        self.import_btn = QPushButton("📂 Импорт")
+        self.import_btn.clicked.connect(self._import_points)
+        button_layout.addWidget(self.import_btn)
+        
+        layout.addLayout(button_layout)
+        
+        # Таблица
+        self.table_view = PointsTableView(self)
+        self.table_view.point_selected.connect(self.point_selected)
+        self.table_view.point_deleted.connect(self.point_deleted)
+        self.table_view.point_added.connect(self.point_added)
+        layout.addWidget(self.table_view)
+    
+    def _add_point_manual(self):
+        """Ручное добавление пункта"""
+        dialog = ManualPointInputDialog(self)
+        if dialog.exec_() == QDialog.Accepted:
+            point_data = dialog.get_point_data()
+            if not point_data['id']:
+                QMessageBox.warning(self, "Ошибка", "ID пункта не может быть пустым")
+                return
+            
+            # Добавление в таблицу
+            self.table_view.add_point_from_data(point_data)
+            self.point_added.emit(point_data)
+    
+    def _edit_point_manual(self):
+        """Ручное редактирование пункта"""
+        selected = self.table_view.get_selected_points()
+        if not selected:
+            QMessageBox.information(self, "Информация", "Выберите пункт для редактирования")
+            return
+        
+        point_data = selected[0]
+        dialog = ManualPointInputDialog(self, point_data)
+        if dialog.exec_() == QDialog.Accepted:
+            updated_data = dialog.get_point_data()
+            self.table_view.update_point(point_data['id'], updated_data)
+            self.point_edited.emit(updated_data)
+    
+    def _delete_point(self):
+        """Удаление пункта"""
+        self.table_view._delete_point()
+    
+    def _import_points(self):
+        """Импорт пунктов из файла"""
+        self.table_view._export_points()  # Используем существующий метод
+    
+    def load_from_data(self, points):
+        """Загрузка данных"""
+        self.table_view.load_from_data(points)
+    
+    def update_data(self, points):
+        """Обновление данных"""
+        self.table_view.update_data(points)
 
 
 class PointsTableView(QTableView):
@@ -231,8 +407,40 @@ class PointsTableView(QTableView):
                 'type': self.model.index(row, 2).data(),
                 'x': self.model.index(row, 3).data(),
                 'y': self.model.index(row, 4).data(),
-                'h': self.model.index(row, 5).data()
+                'h': self.model.index(row, 5).data(),
+                'instrument': self.model.index(row, 6).data(),
+                'notes': self.model.index(row, 7).data()
             }
             points.append(point_data)
         
         return points
+    
+    def add_point_from_data(self, point_data: dict):
+        """Добавление пункта из данных"""
+        row_data = [
+            point_data.get('id', ''),
+            point_data.get('name', ''),
+            point_data.get('type', 'FREE'),
+            str(point_data.get('x', '')),
+            str(point_data.get('y', '')),
+            str(point_data.get('h', '')),
+            point_data.get('instrument', ''),
+            point_data.get('notes', '')
+        ]
+        items = [QStandardItem(str(val)) for val in row_data]
+        self.model.appendRow(items)
+        self.point_added.emit(point_data)
+    
+    def update_point(self, point_id: str, updated_data: dict):
+        """Обновление данных пункта"""
+        for row in range(self.model.rowCount()):
+            if self.model.index(row, 0).data() == point_id:
+                self.model.setItem(row, 0, QStandardItem(updated_data.get('id', '')))
+                self.model.setItem(row, 1, QStandardItem(updated_data.get('name', '')))
+                self.model.setItem(row, 2, QStandardItem(updated_data.get('type', 'FREE')))
+                self.model.setItem(row, 3, QStandardItem(str(updated_data.get('x', ''))))
+                self.model.setItem(row, 4, QStandardItem(str(updated_data.get('y', ''))))
+                self.model.setItem(row, 5, QStandardItem(str(updated_data.get('h', ''))))
+                self.model.setItem(row, 6, QStandardItem(updated_data.get('instrument', '')))
+                self.model.setItem(row, 7, QStandardItem(updated_data.get('notes', '')))
+                break

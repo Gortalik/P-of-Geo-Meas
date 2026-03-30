@@ -22,13 +22,15 @@ except ImportError:
     GrossErrorAnalyzer = None
 
 try:
-    from .normative_classes import NormativeClassChecker
+    from .normative_classes import NormativeClass, NormativeClassLibrary
 except ImportError:
-    NormativeClassChecker = None
+    NormativeClass = None
+    NormativeClassLibrary = None
 
 __all__ = [
     'Visualization',
     'EllipseErrorCalculator',
     'GrossErrorAnalyzer',
-    'NormativeClassChecker',
+    'NormativeClass',
+    'NormativeClassLibrary',
 ]

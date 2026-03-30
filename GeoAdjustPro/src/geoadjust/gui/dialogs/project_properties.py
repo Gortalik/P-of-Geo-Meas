@@ -19,12 +19,124 @@ from PyQt5.QtWidgets import (
     QTreeWidget, QTreeWidgetItem, QStackedWidget, QWidget,
     QLabel, QLineEdit, QTextEdit, QComboBox, QSpinBox, 
     QDoubleSpinBox, QCheckBox, QPushButton, QDialogButtonBox,
-    QGroupBox, QGridLayout
+    QGroupBox, QGridLayout, QMessageBox
 )
 from PyQt5.QtCore import Qt
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+class InstrumentDialog(QDialog):
+    """Диалог добавления/редактирования прибора"""
+    
+    def __init__(self, parent=None, instrument_data=None):
+        super().__init__(parent)
+        self.setWindowTitle("Настройка прибора")
+        self.resize(450, 350)
+        
+        layout = QFormLayout(self)
+        
+        # Название прибора
+        self.name_edit = QLineEdit()
+        if instrument_data:
+            self.name_edit.setText(instrument_data.get('name', ''))
+        layout.addRow("Название:", self.name_edit)
+        
+        # Тип прибора
+        self.type_combo = QComboBox()
+        self.type_combo.addItems([
+            "Тахеометр",
+            "Теодолит",
+            "Нивелир",
+            "GPS/GNSS приёмник",
+            "Лазерный дальномер",
+            "Другое"
+        ])
+        if instrument_data:
+            idx = self.type_combo.findText(instrument_data.get('type', 'Тахеометр'))
+            if idx >= 0:
+                self.type_combo.setCurrentIndex(idx)
+        layout.addRow("Тип:", self.type_combo)
+        
+        # Производитель
+        self.manufacturer_combo = QComboBox()
+        self.manufacturer_combo.setEditable(True)
+        self.manufacturer_combo.addItems([
+            "Leica",
+            "Trimble",
+            "Topcon",
+            "Sokkia",
+            "Nikon",
+            "Pentax",
+            "South",
+            "Другой"
+        ])
+        if instrument_data:
+            self.manufacturer_combo.setCurrentText(instrument_data.get('manufacturer', ''))
+        layout.addRow("Производитель:", self.manufacturer_combo)
+        
+        # Точность углов
+        self.angular_accuracy_spin = QDoubleSpinBox()
+        self.angular_accuracy_spin.setRange(0.1, 60.0)
+        self.angular_accuracy_spin.setValue(2.0)
+        self.angular_accuracy_spin.setSuffix(" \"")
+        self.angular_accuracy_spin.setDecimals(1)
+        if instrument_data:
+            self.angular_accuracy_spin.setValue(instrument_data.get('angular_accuracy', 2.0))
+        layout.addRow("Точность углов:", self.angular_accuracy_spin)
+        
+        # Точность расстояний (a)
+        self.distance_accuracy_a_spin = QDoubleSpinBox()
+        self.distance_accuracy_a_spin.setRange(0.1, 10.0)
+        self.distance_accuracy_a_spin.setValue(2.0)
+        self.distance_accuracy_a_spin.setSuffix(" мм")
+        self.distance_accuracy_a_spin.setDecimals(1)
+        if instrument_data:
+            self.distance_accuracy_a_spin.setValue(instrument_data.get('distance_accuracy_a', 2.0))
+        layout.addRow("Точность расстояний (a):", self.distance_accuracy_a_spin)
+        
+        # Точность расстояний (b)
+        self.distance_accuracy_b_spin = QDoubleSpinBox()
+        self.distance_accuracy_b_spin.setRange(0.1, 10.0)
+        self.distance_accuracy_b_spin.setValue(2.0)
+        self.distance_accuracy_b_spin.setSuffix(" ppm")
+        self.distance_accuracy_b_spin.setDecimals(1)
+        if instrument_data:
+            self.distance_accuracy_b_spin.setValue(instrument_data.get('distance_accuracy_b', 2.0))
+        layout.addRow("Точность расстояний (b):", self.distance_accuracy_b_spin)
+        
+        # Серийный номер
+        self.serial_edit = QLineEdit()
+        if instrument_data:
+            self.serial_edit.setText(instrument_data.get('serial_number', ''))
+        layout.addRow("Серийный номер:", self.serial_edit)
+        
+        # Примечание
+        self.notes_edit = QTextEdit()
+        self.notes_edit.setMaximumHeight(60)
+        if instrument_data:
+            self.notes_edit.setPlainText(instrument_data.get('notes', ''))
+        layout.addRow("Примечание:", self.notes_edit)
+        
+        # Кнопки
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addRow(button_box)
+    
+    def get_instrument_data(self):
+        """Получение данных прибора"""
+        return {
+            'name': self.name_edit.text().strip(),
+            'type': self.type_combo.currentText(),
+            'manufacturer': self.manufacturer_combo.currentText().strip(),
+            'angular_accuracy': self.angular_accuracy_spin.value(),
+            'distance_accuracy_a': self.distance_accuracy_a_spin.value(),
+            'distance_accuracy_b': self.distance_accuracy_b_spin.value(),
+            'serial_number': self.serial_edit.text().strip(),
+            'notes': self.notes_edit.toPlainText().strip()
+        }
 
 
 class ProjectPropertiesDialog(QDialog):
@@ -714,15 +826,70 @@ class ProjectPropertiesDialog(QDialog):
     def _add_instrument(self):
         """Добавление прибора"""
         logger.info("Добавление прибора")
-        # TODO: Открыть диалог добавления прибора
+        dialog = InstrumentDialog(self)
+        if dialog.exec_() == QDialog.Accepted:
+            instr_data = dialog.get_instrument_data()
+            item = QTreeWidgetItem([
+                instr_data['name'],
+                instr_data['type'],
+                instr_data['manufacturer'],
+                f"{instr_data['angular_accuracy']}\"",
+                f"{instr_data['distance_accuracy_a']}+{instr_data['distance_accuracy_b']}ppm"
+            ])
+            self.instruments_table.addTopLevelItem(item)
+            
+            # Сохранение в настройки проекта
+            if 'instruments' not in self.project.settings:
+                self.project.settings['instruments'] = {'instruments': []}
+            self.project.settings['instruments']['instruments'].append(instr_data)
     
     def _edit_instrument(self):
         """Редактирование прибора"""
         logger.info("Редактирование прибора")
+        selected = self.instruments_table.selectedItems()
+        if not selected:
+            QMessageBox.information(self, "Информация", "Выберите прибор для редактирования")
+            return
+        
+        item = self.instruments_table.currentItem()
+        if item:
+            # Получение данных из строки
+            instr_data = {
+                'name': item.text(0),
+                'type': item.text(1),
+                'manufacturer': item.text(2),
+                'angular_accuracy': float(item.text(3).replace('"', '')),
+                'distance_accuracy_a': float(item.text(4).split('+')[0]),
+                'distance_accuracy_b': float(item.text(4).split('+')[1].replace('ppm', ''))
+            }
+            
+            dialog = InstrumentDialog(self, instr_data)
+            if dialog.exec_() == QDialog.Accepted:
+                updated_data = dialog.get_instrument_data()
+                item.setText(0, updated_data['name'])
+                item.setText(1, updated_data['type'])
+                item.setText(2, updated_data['manufacturer'])
+                item.setText(3, f"{updated_data['angular_accuracy']}\"")
+                item.setText(4, f"{updated_data['distance_accuracy_a']}+{updated_data['distance_accuracy_b']}ppm")
     
     def _remove_instrument(self):
         """Удаление прибора"""
         logger.info("Удаление прибора")
+        selected = self.instruments_table.selectedItems()
+        if not selected:
+            QMessageBox.information(self, "Информация", "Выберите прибор для удаления")
+            return
+        
+        reply = QMessageBox.question(
+            self, "Подтверждение", 
+            "Удалить выбранный прибор?",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        
+        if reply == QMessageBox.Yes:
+            for item in selected:
+                index = self.instruments_table.indexOfTopLevelItem(item)
+                self.instruments_table.takeTopLevelItem(index)
     
     # Обработчики кнопок управления классами
     def _add_norm_class(self):

@@ -38,65 +38,65 @@ print("=" * 80)
 try:
     # Core modules
     from geoadjust.core.network.models import NetworkPoint, Observation
-    print("✓ geoadjust.core.network.models")
+    print("[OK] geoadjust.core.network.models")
     
     from geoadjust.core.adjustment.instruments import Instrument
-    print("✓ geoadjust.core.adjustment.instruments")
+    print("[OK] geoadjust.core.adjustment.instruments")
     
     from geoadjust.core.adjustment.equations_builder import EquationsBuilder
-    print("✓ geoadjust.core.adjustment.equations_builder")
+    print("[OK] geoadjust.core.adjustment.equations_builder")
     
     from geoadjust.core.adjustment.weight_builder import WeightBuilder
-    print("✓ geoadjust.core.adjustment.weight_builder")
+    print("[OK] geoadjust.core.adjustment.weight_builder")
     
     from geoadjust.core.adjustment.engine import AdjustmentEngine
-    print("✓ geoadjust.core.adjustment.engine")
+    print("[OK] geoadjust.core.adjustment.engine")
     
     from geoadjust.core.processing_pipeline import ProcessingPipeline
-    print("✓ geoadjust.core.processing_pipeline")
+    print("[OK] geoadjust.core.processing_pipeline")
     
     # Analysis modules
     from geoadjust.core.analysis.ellipse_errors import ErrorEllipseAnalyzer, calculate_error_ellipse_parameters
-    print("✓ geoadjust.core.analysis.ellipse_errors")
+    print("[OK] geoadjust.core.analysis.ellipse_errors")
     
     from geoadjust.core.analysis.gross_errors import GrossErrorAnalyzer
-    print("✓ geoadjust.core.analysis.gross_errors")
+    print("[OK] geoadjust.core.analysis.gross_errors")
     
     from geoadjust.core.analysis.normative_classes import NormativeClass, NormativeClassLibrary
-    print("✓ geoadjust.core.analysis.normative_classes")
+    print("[OK] geoadjust.core.analysis.normative_classes")
     
     # Reliability modules
     from geoadjust.core.reliability.baarda_method import BaardaReliability
-    print("✓ geoadjust.core.reliability.baarda_method")
+    print("[OK] geoadjust.core.reliability.baarda_method")
     
     # CRS modules
     from geoadjust.crs.database import CRSDatabase
-    print("✓ geoadjust.crs.database")
+    print("[OK] geoadjust.crs.database")
     
     from geoadjust.crs.projection import GaussKrugerProjection
-    print("✓ geoadjust.crs.projection")
+    print("[OK] geoadjust.crs.projection")
     
     from geoadjust.crs.transformer import CoordinateTransformer
-    print("✓ geoadjust.crs.transformer")
+    print("[OK] geoadjust.crs.transformer")
     
     # IO modules
     from geoadjust.io.formats.dat import DATParser
-    print("✓ geoadjust.io.formats.dat")
+    print("[OK] geoadjust.io.formats.dat")
     
     from geoadjust.io.formats.gsi import GSIParser
-    print("✓ geoadjust.io.formats.gsi")
+    print("[OK] geoadjust.io.formats.gsi")
     
     from geoadjust.io.formats.sdr import SDRParser
-    print("✓ geoadjust.io.formats.sdr")
+    print("[OK] geoadjust.io.formats.sdr")
     
     # GUI modules
     from geoadjust.gui.main_window import MainWindow
-    print("✓ geoadjust.gui.main_window")
+    print("[OK] geoadjust.gui.main_window")
     
-    print("\n✅ ВСЕ МОДУЛИ УСПЕШНО ИМПОРТИРОВАНЫ\n")
+    print("\n[OK] ВСЕ МОДУЛИ УСПЕШНО ИМПОРТИРОВАНЫ\n")
     
 except ImportError as e:
-    print(f"\n❌ ОШИБКА ИМПОРТА: {e}\n")
+    print(f"\n[ERROR] ОШИБКА ИМПОРТА: {e}\n")
     sys.exit(1)
 
 # ============================================================================
@@ -126,14 +126,14 @@ try:
         sigma_apriori=None
     )
     
-    print(f"✓ Создано пунктов: 3")
-    print(f"✓ Создано измерений: 2")
-    print(f"✓ P1: ({point1.x}, {point1.y}) - {point1.coord_type}")
-    print(f"✓ P2: ({point2.x}, {point2.y}) - {point2.coord_type}")
-    print(f"✓ P3: ({point3.x}, {point3.y}) - {point3.coord_type}")
-    print("✅ ТЕСТ 1 ПРОЙДЕН\n")
+    print(f"[OK] Создано пунктов: 3")
+    print(f"[OK] Создано измерений: 2")
+    print(f"[OK] P1: ({point1.x}, {point1.y}) - {point1.coord_type}")
+    print(f"[OK] P2: ({point2.x}, {point2.y}) - {point2.coord_type}")
+    print(f"[OK] P3: ({point3.x}, {point3.y}) - {point3.coord_type}")
+    print("[OK] ТЕСТ 1 ПРОЙДЕН\n")
 except Exception as e:
-    print(f"❌ ОШИБКА: {e}\n")
+    print(f"[ERROR] ОШИБКА: {e}\n")
 
 # ============================================================================
 # ТЕСТ 2: Instrument и WeightBuilder
@@ -172,12 +172,12 @@ try:
     weight_builder = WeightBuilder(instrument_library)
     P = weight_builder.build_weight_matrix(observations)
     
-    print(f"✓ Прибор: total_station (точность угла: {instrument.angular_accuracy}\", расстояния: {instrument.distance_accuracy_a}мм + {instrument.distance_accuracy_b}ppm)")
-    print(f"✓ Весовая матрица: {P.shape[0]}×{P.shape[1]}")
-    print(f"✓ Диагональные элементы (веса): {P.diagonal()}")
-    print("✅ ТЕСТ 2 ПРОЙДЕН\n")
+    print(f"[OK] Прибор: total_station (точность угла: {instrument.angular_accuracy}\", расстояния: {instrument.distance_accuracy_a}мм + {instrument.distance_accuracy_b}ppm)")
+    print(f"[OK] Весовая матрица: {P.shape[0]}×{P.shape[1]}")
+    print(f"[OK] Диагональные элементы (веса): {P.diagonal()}")
+    print("[OK] ТЕСТ 2 ПРОЙДЕН\n")
 except Exception as e:
-    print(f"❌ ОШИБКА: {e}\n")
+    print(f"[ERROR] ОШИБКА: {e}\n")
 
 # ============================================================================
 # ТЕСТ 3: EquationsBuilder
@@ -228,14 +228,14 @@ try:
         fixed_points=['P1']
     )
     
-    print(f"✓ Матрица А: {A.shape[0]}×{A.shape[1]}")
-    print(f"✓ Вектор L: {len(L)}")
-    print(f"✓ Число ненулевых элементов: {A.nnz}")
-    print(f"✓ Матрица А (плотное представление):\n{A.toarray()}")
-    print(f"✓ Вектор L:\n{L}")
-    print("✅ ТЕСТ 3 ПРОЙДЕН\n")
+    print(f"[OK] Матрица А: {A.shape[0]}×{A.shape[1]}")
+    print(f"[OK] Вектор L: {len(L)}")
+    print(f"[OK] Число ненулевых элементов: {A.nnz}")
+    print(f"[OK] Матрица А (плотное представление):\n{A.toarray()}")
+    print(f"[OK] Вектор L:\n{L}")
+    print("[OK] ТЕСТ 3 ПРОЙДЕН\n")
 except Exception as e:
-    print(f"❌ ОШИБКА: {e}\n")
+    print(f"[ERROR] ОШИБКА: {e}\n")
 
 # ============================================================================
 # ТЕСТ 4: ErrorEllipseAnalyzer

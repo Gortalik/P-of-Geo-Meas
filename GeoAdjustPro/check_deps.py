@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+с#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Проверка установки критических зависимостей для GeoAdjust Pro
@@ -36,9 +36,9 @@ critical_missing = []
 for package_name, module_name in CRITICAL_DEPS:
     try:
         importlib.import_module(module_name)
-        print(f"✅ {package_name:25s} - УСТАНОВЛЕН")
+        print(f"[OK] {package_name:25s} - УСТАНОВЛЕН")
     except ImportError as e:
-        print(f"❌ {package_name:25s} - ОТСУТСТВУЕТ ({e})")
+        print(f"[NO] {package_name:25s} - ОТСУТСТВУЕТ ({e})")
         all_ok = False
         critical_missing.append(package_name)
 
@@ -46,13 +46,13 @@ print()
 print("=" * 80)
 
 if all_ok:
-    print("✅ ВСЕ КРИТИЧЕСКИЕ ЗАВИСИМОСТИ УСТАНОВЛЕНЫ")
+    print("[OK] ВСЕ КРИТИЧЕСКИЕ ЗАВИСИМОСТИ УСТАНОВЛЕНЫ")
     print()
     print("Можно запускать сборку:")
     print("  cd GeoAdjustPro")
     print("  pyinstaller P-of-Geo-Meas.spec --clean --noconfirm")
 else:
-    print("⚠️  НЕКОТОРЫЕ КРИТИЧЕСКИЕ ЗАВИСИМОСТИ ОТСУТСТВУЮТ")
+    print("[!!] НЕКОТОРЫЕ КРИТИЧЕСКИЕ ЗАВИСИМОСТИ ОТСУТСТВУЮТ")
     print()
     print("Отсутствующие пакеты:")
     for pkg in critical_missing:
@@ -60,7 +60,7 @@ else:
     print()
     print("Рекомендуемые действия:")
     print()
-    print("📦 Пакеты можно установить через pip:")
+    print("[PKG] Пакеты можно установить через pip:")
     print(f"   pip install {' '.join(critical_missing)}")
     print()
     print("   С использованием китайского зеркала (если проблемы с сетью):")

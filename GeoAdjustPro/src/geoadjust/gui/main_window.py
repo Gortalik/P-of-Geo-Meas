@@ -332,6 +332,17 @@ class MainWindow(QMainWindow):
             ("Экспорт в КРЕДО", "export_to_credo", None, self._export_to_credo),
         ])
         
+        # Вкладка "Редактирование"
+        edit_tab = self.ribbon.add_tab("Редактирование")
+        edit_tab.add_group("Добавление данных", [
+            ("Добавить пункт", "add_point", "Ctrl+P", self._add_point),
+            ("Добавить измерение", "add_observation", "Ctrl+M", self._add_observation),
+        ])
+        edit_tab.add_group("Буфер обмена", [
+            ("Копировать", "copy", "Ctrl+C", None),
+            ("Вставить", "paste", "Ctrl+V", None),
+        ])
+        
         # Вкладка "Обработка"
         process_tab = self.ribbon.add_tab("Обработка")
         process_tab.add_group("Предобработка", [
@@ -389,6 +400,27 @@ class MainWindow(QMainWindow):
         edit_toolbar.addAction("Копировать")
         edit_toolbar.addAction("Вставить")
         self.addToolBar(Qt.TopToolBarArea, edit_toolbar)
+        
+        # Тулбар "Данные"
+        data_toolbar = QToolBar("Данные", self)
+        
+        # Добавить пункт с иконкой
+        add_point_action = QAction("Добавить пункт", self)
+        add_point_icon_path = get_resource_path("icons/toolbar/add_point.svg")
+        if hasattr(add_point_icon_path, 'exists') and add_point_icon_path.exists():
+            add_point_action.setIcon(QIcon(str(add_point_icon_path)))
+        add_point_action.triggered.connect(self._add_point)
+        data_toolbar.addAction(add_point_action)
+        
+        # Добавить измерение с иконкой
+        add_obs_action = QAction("Добавить измерение", self)
+        add_obs_icon_path = get_resource_path("icons/toolbar/add_observation.svg")
+        if hasattr(add_obs_icon_path, 'exists') and add_obs_icon_path.exists():
+            add_obs_action.setIcon(QIcon(str(add_obs_icon_path)))
+        add_obs_action.triggered.connect(self._add_observation)
+        data_toolbar.addAction(add_obs_action)
+        
+        self.addToolBar(Qt.TopToolBarArea, data_toolbar)
         
         # Тулбар "Обработка"
         process_toolbar = QToolBar("Обработка", self)

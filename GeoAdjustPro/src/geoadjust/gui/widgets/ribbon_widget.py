@@ -59,14 +59,21 @@ class RibbonGroup(QFrame):
         
         if icon_name:
             try:
-                icon_path = get_resource_path(f"gui/resources/icons/{icon_name}.png")
+                # Попробовать загрузить SVG иконку из папки toolbar
+                icon_path = get_resource_path(f"icons/toolbar/{icon_name}.svg")
                 if hasattr(icon_path, 'exists') and icon_path.exists():
                     button.setIcon(QIcon(str(icon_path)))
                     button.setIconSize(QSize(32, 32))  # Увеличенный размер иконки
                 else:
-                    # Использовать стандартную иконку если файл не найден
-                    button.setIcon(QIcon.fromTheme("applications-science"))
-                    button.setIconSize(QSize(32, 32))
+                    # Попробовать загрузить PNG иконку из gui/resources/icons
+                    icon_path = get_resource_path(f"gui/resources/icons/{icon_name}.png")
+                    if hasattr(icon_path, 'exists') and icon_path.exists():
+                        button.setIcon(QIcon(str(icon_path)))
+                        button.setIconSize(QSize(32, 32))  # Увеличенный размер иконки
+                    else:
+                        # Использовать стандартную иконку если файл не найден
+                        button.setIcon(QIcon.fromTheme("applications-science"))
+                        button.setIconSize(QSize(32, 32))
             except Exception:
                 # Продолжить без иконки при ошибке
                 pass

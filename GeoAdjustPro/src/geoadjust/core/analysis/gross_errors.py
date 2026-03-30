@@ -54,6 +54,10 @@ class GrossErrorAnalyzer:
             from sksparse.cholmod import cholesky
             factor = cholesky(N.tocsc())
             N_inv = factor.inv()
+        except ImportError:
+            warnings.warn("sksparse недоступен, используем псевдообратную матрицу")
+            N_inv = np.linalg.pinv(N.toarray())
+            N_inv = sparse.csr_matrix(N_inv)
         except Exception as e:
             warnings.warn(f"Используем псевдообратную матрицу: {e}")
             N_inv = np.linalg.pinv(N.toarray())

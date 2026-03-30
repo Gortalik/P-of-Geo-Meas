@@ -17,7 +17,7 @@ from .preprocessing.module import PreprocessingModule
 from .adjustment.equations_builder import EquationsBuilder
 from .adjustment.weight_builder import WeightBuilder
 from .adjustment.engine import AdjustmentEngine
-from .reliability.baarda_method import BaardaMethod
+from .reliability.baarda_method import BaardaReliability
 from .analysis.gross_errors import GrossErrorAnalyzer
 from .adjustment.instruments import Instrument
 

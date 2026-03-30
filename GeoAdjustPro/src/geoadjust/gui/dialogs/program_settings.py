@@ -323,9 +323,40 @@ class ProgramSettingsDialog(QDialog):
     
     def _load_settings(self):
         """Загрузка настроек из конфигурации"""
-        # Загрузка из файла конфигурации или реестра
-        # TODO: Реализовать загрузку из файла конфигурации
-        logger.info("Загрузка настроек программы")
+        from PyQt5.QtCore import QSettings
+        
+        settings = QSettings("GeoAdjustPro", "Settings")
+        
+        # Загрузка общих настроек
+        self.language_combo.setCurrentIndex(settings.value("general/language_index", 0, type=int))
+        self.interface_type_combo.setCurrentIndex(settings.value("general/interface_type_index", 0, type=int))
+        self.theme_combo.setCurrentIndex(settings.value("general/theme_index", 0, type=int))
+        self.autosave_check.setChecked(settings.value("general/autosave_enabled", True, type=bool))
+        self.autosave_interval_spin.setValue(settings.value("general/autosave_interval", 5, type=int))
+        self.recent_projects_spin.setValue(settings.value("general/recent_projects_count", 10, type=int))
+        self.splash_check.setChecked(settings.value("general/show_splash", True, type=bool))
+        
+        # Загрузка настроек схемы
+        self.point_color_btn.setStyleSheet(f"background-color: {settings.value('scheme/point_color', 'red')};")
+        self.point_size_spin.setValue(settings.value("scheme/point_size", 8, type=int))
+        self.point_shape_combo.setCurrentIndex(settings.value("scheme/point_shape_index", 0, type=int))
+        self.ellipse_color_btn.setStyleSheet(f"background-color: {settings.value('scheme/ellipse_color', 'blue')};")
+        self.ellipse_opacity_spin.setValue(settings.value("scheme/ellipse_opacity", 0.5, type=float))
+        self.direction_color_btn.setStyleSheet(f"background-color: {settings.value('scheme/direction_color', 'green')};")
+        self.distance_color_btn.setStyleSheet(f"background-color: {settings.value('scheme/distance_color', 'orange')};")
+        
+        # Загрузка настроек таблиц
+        font_family = settings.value("tables/font_family", "Arial")
+        self.table_font_combo.setCurrentFont(QFont(font_family))
+        self.table_font_size_spin.setValue(settings.value("tables/font_size", 10, type=int))
+        self.alternate_rows_check.setChecked(settings.value("tables/alternate_rows", True, type=bool))
+        self.show_grid_check.setChecked(settings.value("tables/show_grid", True, type=bool))
+        self.show_headers_check.setChecked(settings.value("tables/show_headers", True, type=bool))
+        self.highlight_row_check.setChecked(settings.value("tables/highlight_row", True, type=bool))
+        self.confirm_delete_check.setChecked(settings.value("tables/confirm_delete", True, type=bool))
+        self.auto_save_edit_check.setChecked(settings.value("tables/auto_save_edit", False, type=bool))
+        
+        logger.info("Настройки программы загружены")
     
     def accept(self):
         """Подтверждение изменений"""
@@ -335,11 +366,41 @@ class ProgramSettingsDialog(QDialog):
     
     def _save_settings(self):
         """Сохранение настроек"""
-        # Сохранение в файл конфигурации или реестр
-        settings = self._collect_settings()
+        from PyQt5.QtCore import QSettings
         
-        # TODO: Сохранение в файл конфигурации
-        logger.info(f"Сохранение настроек: {settings}")
+        settings_dict = self._collect_settings()
+        qsettings = QSettings("GeoAdjustPro", "Settings")
+        
+        # Сохранение общих настроек
+        qsettings.setValue("general/language_index", self.language_combo.currentIndex())
+        qsettings.setValue("general/interface_type_index", self.interface_type_combo.currentIndex())
+        qsettings.setValue("general/theme_index", self.theme_combo.currentIndex())
+        qsettings.setValue("general/autosave_enabled", self.autosave_check.isChecked())
+        qsettings.setValue("general/autosave_interval", self.autosave_interval_spin.value())
+        qsettings.setValue("general/recent_projects_count", self.recent_projects_spin.value())
+        qsettings.setValue("general/show_splash", self.splash_check.isChecked())
+        
+        # Сохранение настроек схемы
+        qsettings.setValue("scheme/point_color", settings_dict['scheme']['point_color'])
+        qsettings.setValue("scheme/point_size", self.point_size_spin.value())
+        qsettings.setValue("scheme/point_shape_index", self.point_shape_combo.currentIndex())
+        qsettings.setValue("scheme/ellipse_color", settings_dict['scheme']['ellipse_color'])
+        qsettings.setValue("scheme/ellipse_opacity", self.ellipse_opacity_spin.value())
+        qsettings.setValue("scheme/direction_color", settings_dict['scheme']['direction_color'])
+        qsettings.setValue("scheme/distance_color", settings_dict['scheme']['distance_color'])
+        
+        # Сохранение настроек таблиц
+        qsettings.setValue("tables/font_family", self.table_font_combo.currentFont().family())
+        qsettings.setValue("tables/font_size", self.table_font_size_spin.value())
+        qsettings.setValue("tables/alternate_rows", self.alternate_rows_check.isChecked())
+        qsettings.setValue("tables/show_grid", self.show_grid_check.isChecked())
+        qsettings.setValue("tables/show_headers", self.show_headers_check.isChecked())
+        qsettings.setValue("tables/highlight_row", self.highlight_row_check.isChecked())
+        qsettings.setValue("tables/confirm_delete", self.confirm_delete_check.isChecked())
+        qsettings.setValue("tables/auto_save_edit", self.auto_save_edit_check.isChecked())
+        
+        qsettings.sync()
+        logger.info("Настройки программы сохранены")
     
     def _collect_settings(self) -> Dict[str, Any]:
         """Сбор всех настроек в словарь"""

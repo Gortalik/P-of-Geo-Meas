@@ -44,6 +44,10 @@ class BaardaReliability:
             from sksparse.cholmod import cholesky
             factor = cholesky(self.N.tocsc())
             N_inv = factor.inv()
+        except ImportError:
+            logger.warning("sksparse недоступен, используем псевдообратную матрицу")
+            N_inv = np.linalg.pinv(self.N.toarray())
+            N_inv = sparse.csr_matrix(N_inv)
         except Exception as e:
             logger.warning(f"Используем псевдообратную матрицу: {e}", exc_info=True)
             N_inv = np.linalg.pinv(self.N.toarray())

@@ -34,7 +34,8 @@ class LogWidget(QWidget):
         super().__init__(parent)
         
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(2, 2, 2, 2)
+        layout.setSpacing(2)
         
         # Текстовое поле журнала
         self.log_text = QTextEdit()
@@ -48,39 +49,49 @@ class LogWidget(QWidget):
         self.log_handler = None
         self._setup_logging()
         
-        # Панель инструментов
+        # Панель инструментов - компактная
         toolbar = QHBoxLayout()
+        toolbar.setContentsMargins(0, 0, 0, 0)
+        toolbar.setSpacing(2)
         
         clear_btn = QPushButton("Очистить")
         clear_btn.clicked.connect(self.clear_log)
+        clear_btn.setMaximumHeight(24)
         toolbar.addWidget(clear_btn)
         
         save_btn = QPushButton("Сохранить...")
         save_btn.clicked.connect(self.save_log)
+        save_btn.setMaximumHeight(24)
         toolbar.addWidget(save_btn)
         
         toolbar.addStretch()
         
-        # Фильтры
+        # Фильтры - компактные
         self.filter_info_check = QPushButton("INFO")
         self.filter_info_check.setCheckable(True)
         self.filter_info_check.setChecked(True)
-        self.filter_info_check.setMaximumWidth(50)
+        self.filter_info_check.setMaximumWidth(45)
+        self.filter_info_check.setMaximumHeight(24)
         toolbar.addWidget(self.filter_info_check)
         
         self.filter_warning_check = QPushButton("WARN")
         self.filter_warning_check.setCheckable(True)
         self.filter_warning_check.setChecked(True)
-        self.filter_warning_check.setMaximumWidth(50)
+        self.filter_warning_check.setMaximumWidth(45)
+        self.filter_warning_check.setMaximumHeight(24)
         toolbar.addWidget(self.filter_warning_check)
         
         self.filter_error_check = QPushButton("ERROR")
         self.filter_error_check.setCheckable(True)
         self.filter_error_check.setChecked(True)
-        self.filter_error_check.setMaximumWidth(50)
+        self.filter_error_check.setMaximumWidth(45)
+        self.filter_error_check.setMaximumHeight(24)
         toolbar.addWidget(self.filter_error_check)
         
         layout.addLayout(toolbar)
+        
+        # Установка минимального размера виджета
+        self.setMinimumSize(200, 100)
     
     def _setup_logging(self):
         """Настройка перехвата логов Python"""

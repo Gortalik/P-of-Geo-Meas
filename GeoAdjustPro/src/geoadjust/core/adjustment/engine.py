@@ -106,7 +106,7 @@ class AdjustmentEngine:
         Решение системы нормальных уравнений с адаптивным выбором метода
         
         Автоматический выбор оптимального решателя в зависимости от размера сети:
-        - < 500 пунктов: плотное решение (np.linalg.solve)
+        - < 500 пунктов: плотное решение (np.linalg.solve) или lstsq при вырожденности
         - 500-2000 пунктов: LU-разложение (scipy.sparse.linalg.splu)
         - > 2000 пунктов: метод сопряжённых градиентов (scipy.sparse.linalg.cg)
         
@@ -135,7 +135,12 @@ class AdjustmentEngine:
             if n_points < 500:
                 logger.info(f"Используем плотное решение (сеть ~{n_points} пунктов)")
                 N_dense = self.normal_matrix.toarray()
-                self.solution_vector = np.linalg.solve(N_dense, U_array)
+                try:
+                    self.solution_vector = np.linalg.solve(N_dense, U_array)
+                except np.linalg.LinAlgError:
+                    # При вырожденности используем lstsq
+                    logger.warning("Матрица вырождена, используем np.linalg.lstsq")
+                    self.solution_vector, _, _, _ = np.linalg.lstsq(N_dense, U_array, rcond=None)
                 
             # Для средних сетей (500-2000 пунктов) используем LU-разложение
             elif n_points < 2000:

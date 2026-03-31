@@ -4,28 +4,23 @@
 Парсер формата Sokkia SDR (Survey Data Recorder)
 Поддержка версий SDR2x и SDR33
 
-Формат файла SDR:
-- Каждая строка начинается с двухзначного кода записи
-- Структура: код записи + данные
-- Пример: "01JOB NAME"
+Реальный формат SDR33 (на основе тестовых данных):
+- Каждая строка начинается с 2-значного кода записи + 2-значного флага (обычно NM, F1, F2, RS, TP)
+- Данные после кода имеют фиксированную ширину полей (16 символов на число)
 
 Коды записей:
-- 01: Имя работы
-- 02: Установка прибора
-- 03: Задняя визирная точка
-- 04: Передняя визирная точка
-- 05: Координаты пункта
-- 07: Угол на заднюю точку (ориентирное направление)
+- 00: Заголовок файла
+- 01: Информация о приборе
+- 02: Установка станции (координаты + высота инструмента)
+- 03: Высота инструмента/цели
+- 05: Константы/параметры
+- 06: Масштабный коэффициент
+- 07: Ориентирное направление
 - 08: Горизонтальный угол
-- 09: Наклонное расстояние
-- 10: Вертикальный угол
-- 11: Горизонтальное расстояние
-- 12: Превышение
-- 84: Начало станции
-- 85: Начало полуприёма (КЛ)
-- 86: Окончание полуприёма (КП)
-- 87: Начало кругового приёма
-- 88: Окончание кругового приёма
+- 09: Измерение (направление, зенит, расстояние)
+- 10: Имя работы
+- 11: Превышение/координаты
+- 13: Комментарии/удаленные точки
 """
 
 import re
@@ -41,22 +36,19 @@ logger = logging.getLogger(__name__)
 
 class SDRRecordType(Enum):
     """Тип записи в файле SDR"""
-    JOB_NAME = "01"
+    HEADER = "00"
+    INSTRUMENT = "01"
     INSTRUMENT_SETUP = "02"
-    BACKSIGHT_SETUP = "03"
+    TARGET_HEIGHT = "03"
     FORESIGHT_SETUP = "04"
-    COORDINATES = "05"
+    CONSTANTS = "05"
+    SCALE_FACTOR = "06"
     BACKSIGHT_ANGLE = "07"
     HORIZONTAL_ANGLE = "08"
-    SLOPE_DISTANCE = "09"
-    VERTICAL_ANGLE = "10"
-    HORIZONTAL_DISTANCE = "11"
-    ELEVATION_DIFFERENCE = "12"
-    START_STATION = "84"
-    START_FACE = "85"
-    END_FACE = "86"
-    START_CIRCLE = "87"
-    END_CIRCLE = "88"
+    MEASUREMENT = "09"
+    JOB_NAME = "10"
+    COORDINATES = "11"
+    COMMENT = "13"
 
 
 @dataclass
@@ -66,13 +58,16 @@ class SDRStation:
     instrument_height: Optional[float] = None
     backsight_point: Optional[str] = None
     backsight_angle: Optional[float] = None
-    face_position: str = "NONE"  # CL, CP, or NONE
+    face_position: str = "NONE"  # F1 (CL), F2 (CP), or NONE
+    x: Optional[float] = None
+    y: Optional[float] = None
+    h: Optional[float] = None
 
 
 @dataclass
 class SDRObservation:
     """Измерение в формате SDR"""
-    obs_type: str  # 'angle', 'distance', 'height_diff'
+    obs_type: str  # 'direction', 'distance', 'zenith_angle', 'slope_distance', 'height_diff'
     from_point: str
     to_point: str
     value: float
@@ -87,22 +82,19 @@ class SDRParser:
     """Парсер формата Sokkia SDR"""
 
     RECORD_TYPES = {
-        '01': 'job_name',
+        '00': 'header',
+        '01': 'instrument',
         '02': 'instrument_setup',
-        '03': 'backsight_setup',
+        '03': 'target_height',
         '04': 'foresight_setup',
-        '05': 'coordinates',
+        '05': 'constants',
+        '06': 'scale_factor',
         '07': 'backsight_angle',
         '08': 'horizontal_angle',
-        '09': 'slope_distance',
-        '10': 'vertical_angle',
-        '11': 'horizontal_distance',
-        '12': 'elevation_difference',
-        '84': 'start_station',
-        '85': 'start_face',
-        '86': 'end_face',
-        '87': 'start_circle',
-        '88': 'end_circle'
+        '09': 'measurement',
+        '10': 'job_name',
+        '11': 'coordinates',
+        '13': 'comment'
     }
 
     def __init__(self):
@@ -114,220 +106,297 @@ class SDRParser:
         self.points: Dict[str, Dict[str, Any]] = {}
         self.encoding = 'cp1251'
         self.job_name = ""
+        self.current_face = "NONE"  # F1 или F2
 
     def _detect_encoding(self, file_path: Path) -> str:
         """Автоопределение кодировки файла"""
         with open(file_path, 'rb') as f:
             raw_data = f.read(4096)
 
-        result = chardet.detect(raw_data)
-        encoding = result['encoding']
-        confidence = result['confidence']
+        try:
+            text = raw_data.decode('ascii')
+            return 'ascii'
+        except UnicodeDecodeError:
+            pass
 
-        if encoding in ['windows-1251', 'cp1251'] or (encoding == 'ascii' and confidence < 0.9):
+        try:
+            text = raw_data.decode('cp1251')
+            if any(c in text for c in 'абвгдеёжзийклмнопрстуфхцчшщъыьэюя'):
+                return 'cp1251'
+        except UnicodeDecodeError:
+            pass
+
+        return 'utf-8'
+
+    def _parse_fixed_float(self, s: str) -> Optional[float]:
+        """Парсинг числа с фиксированной шириной поля (16 символов)
+        
+        Формат: 16 символов, последние 10 - десятичная часть
+        Пример: '163.215660000000' -> 163.21566
+        """
+        s = s.strip()
+        if not s:
+            return None
+        
+        try:
+            # Пробуем прямой парсинг
+            return float(s)
+        except ValueError:
+            pass
+        
+        # Если не получилось, пробуем разделить на целую и дробную части
+        # Формат SDR: первые 6 символов - целая часть, последние 10 - дробная
+        if len(s) >= 16:
             try:
-                text = raw_data.decode('cp1251')
-                if any(c in text for c in 'абвгдеёжзийклмнопрстуфхцчшщъыьэюя'):
-                    return 'cp1251'
-            except:
+                int_part = s[:6].strip()
+                dec_part = s[6:].strip()
+                if int_part and dec_part:
+                    return float(f"{int_part}.{dec_part}")
+            except ValueError:
                 pass
-
-        if encoding is None or confidence < 0.6:
-            return 'utf-8'
-
-        return encoding.lower()
+        
+        return None
 
     def _parse_job_name(self, line: str):
-        """Парсинг имени работы (код 01)"""
+        """Парсинг имени работы (код 10)"""
         try:
-            self.job_name = line[2:].strip()
-            logger.info(f"Имя работы: {self.job_name}")
+            # Формат: 10NM<имя работы><пробелы><число>
+            data = line[4:].strip()
+            parts = data.split()
+            if parts:
+                self.job_name = parts[0]
+                logger.info(f"Имя работы: {self.job_name}")
         except Exception as e:
             logger.warning(f"Ошибка парсинга имени работы: {e}")
 
     def _parse_instrument_setup(self, line: str) -> str:
-        """Парсинг установки прибора (код 02)"""
+        """Парсинг установки станции (код 02)
+        
+        Формат: 02NM<point_id><Y><X><H><instrument_height>
+        Каждое число - 16 символов
+        """
         try:
-            parts = [p.strip() for p in line[2:].split(',') if p.strip()]
-
-            if len(parts) < 1:
-                raise ValueError("Недостаточно данных для установки прибора")
-
-            station_id = parts[0]
-
+            data = line[4:].strip()
+            
+            # Извлекаем имя точки (первые 16 символов, обычно имя слева)
+            point_id = data[:16].strip()
+            if not point_id:
+                return "unknown"
+            
+            # Парсим координаты (каждая 16 символов)
+            y_str = data[16:32].strip()
+            x_str = data[32:48].strip()
+            h_str = data[48:64].strip()
+            ih_str = data[64:80].strip()
+            
+            y = self._parse_fixed_float(y_str)
+            x = self._parse_fixed_float(x_str)
+            h = self._parse_fixed_float(h_str)
+            ih = self._parse_fixed_float(ih_str)
+            
             self.current_station = SDRStation(
-                point_id=station_id,
-                instrument_height=float(parts[2]) if len(parts) > 2 and parts[2] else None,
-                backsight_point=None,
-                backsight_angle=None,
-                face_position="NONE"
+                point_id=point_id,
+                instrument_height=ih,
+                x=x,
+                y=y,
+                h=h,
+                face_position=self.current_face
             )
-
-            if station_id not in self.points:
-                self.points[station_id] = {
-                    'point_id': station_id,
+            
+            if point_id not in self.points:
+                self.points[point_id] = {
+                    'point_id': point_id,
                     'point_type': 'station',
+                    'x': x,
+                    'y': y,
+                    'h': h
+                }
+            else:
+                self.points[point_id].update({
+                    'x': x,
+                    'y': y,
+                    'h': h
+                })
+            
+            if ih is not None:
+                self.current_setup['instrument_height'] = ih
+            
+            return point_id
+            
+        except Exception as e:
+            logger.warning(f"Ошибка парсинга установки станции: {e}")
+            return "unknown"
+
+    def _parse_target_height(self, line: str):
+        """Парсинг высоты цели (код 03)"""
+        try:
+            data = line[4:].strip()
+            height = self._parse_fixed_float(data)
+            if height is not None:
+                self.current_setup['target_height'] = height
+        except Exception as e:
+            logger.warning(f"Ошибка парсинга высоты цели: {e}")
+
+    def _parse_backsight_angle(self, line: str):
+        """Парсинг ориентирного направления (код 07)"""
+        if not self.current_station:
+            return
+        
+        try:
+            data = line[4:].strip()
+            # Формат: <station><backsight><angle1><angle2>
+            station = data[:16].strip()
+            backsight = data[16:32].strip()
+            angle1_str = data[32:48].strip()
+            angle2_str = data[48:64].strip()
+            
+            angle1 = self._parse_fixed_float(angle1_str)
+            angle2 = self._parse_fixed_float(angle2_str)
+            
+            if backsight:
+                self.current_station.backsight_point = backsight
+                if backsight not in self.points:
+                    self.points[backsight] = {
+                        'point_id': backsight,
+                        'point_type': 'backsight'
+                    }
+            
+            if angle1 is not None:
+                self.current_station.backsight_angle = angle1
+                
+        except Exception as e:
+            logger.warning(f"Ошибка парсинга ориентирного направления: {e}")
+
+    def _parse_measurement(self, line: str, line_num: int):
+        """Парсинг измерения (код 09)
+        
+        Формат: 09F1/F2<station><target><horizontal_angle><zenith_angle><slope_distance>
+        Каждое число - 16 символов
+        """
+        if not self.current_station:
+            return None
+        
+        try:
+            # Определяем полуприем (F1 или F2)
+            face = line[2:4].strip()
+            if face == 'F1':
+                self.current_face = 'CL'
+            elif face == 'F2':
+                self.current_face = 'CP'
+            
+            data = line[4:]
+            
+            # Парсим поля (каждое 16 символов)
+            station = data[:16].strip()
+            target = data[16:32].strip()
+            h_angle_str = data[32:48].strip()
+            z_angle_str = data[48:64].strip()
+            s_dist_str = data[64:80].strip()
+            
+            h_angle = self._parse_fixed_float(h_angle_str)
+            z_angle = self._parse_fixed_float(z_angle_str)
+            s_dist = self._parse_fixed_float(s_dist_str)
+            
+            if not target:
+                return None
+            
+            # Добавляем горизонтальное направление
+            if h_angle is not None:
+                obs = SDRObservation(
+                    obs_type='direction',
+                    from_point=self.current_station.point_id,
+                    to_point=target,
+                    value=h_angle,
+                    instrument_height=self.current_station.instrument_height,
+                    target_height=self.current_setup.get('target_height'),
+                    face_position=self.current_face,
+                    line_number=line_num,
+                    raw_data=line
+                )
+                self.observations.append(obs)
+            
+            # Добавляем зенитный угол
+            if z_angle is not None:
+                obs = SDRObservation(
+                    obs_type='zenith_angle',
+                    from_point=self.current_station.point_id,
+                    to_point=target,
+                    value=z_angle,
+                    instrument_height=self.current_station.instrument_height,
+                    target_height=self.current_setup.get('target_height'),
+                    face_position=self.current_face,
+                    line_number=line_num,
+                    raw_data=line
+                )
+                self.observations.append(obs)
+            
+            # Добавляем наклонное расстояние
+            if s_dist is not None and s_dist > 0:
+                obs = SDRObservation(
+                    obs_type='slope_distance',
+                    from_point=self.current_station.point_id,
+                    to_point=target,
+                    value=s_dist,
+                    instrument_height=self.current_station.instrument_height,
+                    target_height=self.current_setup.get('target_height'),
+                    face_position=self.current_face,
+                    line_number=line_num,
+                    raw_data=line
+                )
+                self.observations.append(obs)
+            
+            # Добавляем точку в список
+            if target not in self.points:
+                self.points[target] = {
+                    'point_id': target,
+                    'point_type': 'target',
                     'x': None,
                     'y': None,
                     'h': None
                 }
-
-            if self.current_station.instrument_height:
-                self.current_setup['instrument_height'] = self.current_station.instrument_height
-
-            return station_id
-
+                
         except Exception as e:
-            logger.warning(f"Ошибка парсинга установки прибора: {e}")
-            return "unknown"
-
-    def _parse_backsight_setup(self, line: str) -> str:
-        """Парсинг задней визирной точки (код 03)"""
-        try:
-            parts = [p.strip() for p in line[2:].split(',') if p.strip()]
-
-            if len(parts) < 1:
-                raise ValueError("Недостаточно данных для задней точки")
-
-            backsight_id = parts[0]
-
-            if self.current_station:
-                self.current_station.backsight_point = backsight_id
-
-            if backsight_id not in self.points:
-                self.points[backsight_id] = {
-                    'point_id': backsight_id,
-                    'point_type': 'backsight'
-                }
-
-            return backsight_id
-
-        except Exception as e:
-            logger.warning(f"Ошибка парсинга задней точки: {e}")
-            return "unknown"
+            logger.warning(f"Ошибка парсинга измерения в строке {line_num}: {e}")
+            self.errors.append({
+                'line': line_num,
+                'message': str(e),
+                'raw_line': line[:100]
+            })
 
     def _parse_coordinates(self, line: str):
-        """Парсинг координат пункта (код 05)"""
+        """Парсинг координат (код 11)"""
         try:
-            parts = [p.strip() for p in line[2:].split(',') if p.strip()]
-
-            if len(parts) < 5:
-                raise ValueError("Недостаточно данных для координат")
-
-            point_id = parts[0]
-            northing = float(parts[2])
-            easting = float(parts[3])
-            elevation = float(parts[4]) if len(parts) > 4 and parts[4] else None
-
-            if point_id not in self.points:
-                self.points[point_id] = {
-                    'point_id': point_id,
-                    'point_type': 'coordinate',
-                    'x': easting,
-                    'y': northing,
-                    'h': elevation
-                }
-            else:
-                self.points[point_id].update({
-                    'x': easting,
-                    'y': northing,
-                    'h': elevation
-                })
-
+            data = line[4:].strip()
+            # Формат: <point_id><Y><X><H>
+            point_id = data[:16].strip()
+            y_str = data[16:32].strip()
+            x_str = data[32:48].strip()
+            h_str = data[48:64].strip()
+            
+            y = self._parse_fixed_float(y_str)
+            x = self._parse_fixed_float(x_str)
+            h = self._parse_fixed_float(h_str)
+            
+            if point_id:
+                if point_id not in self.points:
+                    self.points[point_id] = {
+                        'point_id': point_id,
+                        'point_type': 'coordinate',
+                        'x': x,
+                        'y': y,
+                        'h': h
+                    }
+                else:
+                    self.points[point_id].update({
+                        'x': x,
+                        'y': y,
+                        'h': h
+                    })
         except Exception as e:
             logger.warning(f"Ошибка парсинга координат: {e}")
 
-    def _parse_angle(self, line: str, angle_type: str, line_num: int) -> Optional[SDRObservation]:
-        """Парсинг углового измерения"""
-        if not self.current_station:
-            return None
-
-        try:
-            angle_str = line[2:].strip()
-            angle_degrees = float(angle_str)
-
-            obs = SDRObservation(
-                obs_type=angle_type,
-                from_point=self.current_station.point_id,
-                to_point=self.current_station.backsight_point or "unknown",
-                value=angle_degrees,
-                instrument_height=self.current_station.instrument_height,
-                face_position=self.current_station.face_position,
-                line_number=line_num,
-                raw_data=line
-            )
-
-            return obs
-
-        except Exception as e:
-            logger.warning(f"Ошибка парсинга угла в строке {line_num}: {e}")
-            return None
-
-    def _parse_distance(self, line: str, distance_type: str, line_num: int) -> Optional[SDRObservation]:
-        """Парсинг линейного измерения"""
-        if not self.current_station:
-            return None
-
-        try:
-            distance_str = line[2:].strip()
-            distance_meters = float(distance_str)
-
-            obs = SDRObservation(
-                obs_type=distance_type,
-                from_point=self.current_station.point_id,
-                to_point=self.current_station.backsight_point or "unknown",
-                value=distance_meters,
-                instrument_height=self.current_station.instrument_height,
-                face_position=self.current_station.face_position,
-                line_number=line_num,
-                raw_data=line
-            )
-
-            return obs
-
-        except Exception as e:
-            logger.warning(f"Ошибка парсинга расстояния в строке {line_num}: {e}")
-            return None
-
-    def _parse_height_difference(self, line: str, line_num: int) -> Optional[SDRObservation]:
-        """Парсинг превышения"""
-        if not self.current_station:
-            return None
-
-        try:
-            height_str = line[2:].strip()
-            height_diff = float(height_str)
-
-            obs = SDRObservation(
-                obs_type='height_diff',
-                from_point=self.current_station.point_id,
-                to_point=self.current_station.backsight_point or "unknown",
-                value=height_diff,
-                instrument_height=self.current_station.instrument_height,
-                line_number=line_num,
-                raw_data=line
-            )
-
-            return obs
-
-        except Exception as e:
-            logger.warning(f"Ошибка парсинга превышения в строке {line_num}: {e}")
-            return None
-
-    def _parse_start_face(self, line: str):
-        """Парсинг начала полуприёма (КЛ)"""
-        if self.current_station:
-            self.current_station.face_position = "CL"
-
-    def _parse_end_face(self, line: str):
-        """Парсинг окончания полуприёма (КП)"""
-        if self.current_station:
-            self.current_station.face_position = "CP"
-
     def parse(self, file_path: Path) -> Dict[str, Any]:
-        """
-        Парсинг файла SDR с полной обработкой структуры
-        """
+        """Парсинг файла SDR"""
         self.encoding = self._detect_encoding(file_path)
 
         with open(file_path, 'r', encoding=self.encoding, errors='ignore') as f:
@@ -343,7 +412,7 @@ class SDRParser:
                 continue
 
             try:
-                if len(line) < 2:
+                if len(line) < 4:
                     continue
 
                 record_code = line[:2]
@@ -354,65 +423,23 @@ class SDRParser:
 
                 if record_type == 'job_name':
                     self._parse_job_name(line)
-
                 elif record_type == 'instrument_setup':
                     self._parse_instrument_setup(line)
-
-                elif record_type == 'backsight_setup':
-                    self._parse_backsight_setup(line)
-
-                elif record_type == 'foresight_setup':
-                    self._parse_backsight_setup(line)
-
+                elif record_type == 'target_height':
+                    self._parse_target_height(line)
+                elif record_type == 'backsight_angle':
+                    self._parse_backsight_angle(line)
+                elif record_type == 'measurement':
+                    self._parse_measurement(line, line_num)
                 elif record_type == 'coordinates':
                     self._parse_coordinates(line)
-
-                elif record_type == 'backsight_angle':
-                    obs = self._parse_angle(line, 'backsight_angle', line_num)
-                    if obs:
-                        self.observations.append(obs)
-
-                elif record_type == 'horizontal_angle':
-                    obs = self._parse_angle(line, 'horizontal_angle', line_num)
-                    if obs:
-                        self.observations.append(obs)
-
-                elif record_type == 'vertical_angle':
-                    obs = self._parse_angle(line, 'vertical_angle', line_num)
-                    if obs:
-                        self.observations.append(obs)
-
-                elif record_type == 'slope_distance':
-                    obs = self._parse_distance(line, 'slope_distance', line_num)
-                    if obs:
-                        self.observations.append(obs)
-
-                elif record_type == 'horizontal_distance':
-                    obs = self._parse_distance(line, 'horizontal_distance', line_num)
-                    if obs:
-                        self.observations.append(obs)
-
-                elif record_type == 'elevation_difference':
-                    obs = self._parse_height_difference(line, line_num)
-                    if obs:
-                        self.observations.append(obs)
-
-                elif record_type == 'start_station':
-                    self.current_setup = {}
-
-                elif record_type == 'start_face':
-                    self._parse_start_face(line)
-
-                elif record_type == 'end_face':
-                    self._parse_end_face(line)
-
-                elif record_type == 'start_circle':
-                    if self.current_station:
-                        self.current_station.face_position = "CL"
-
-                elif record_type == 'end_circle':
-                    if self.current_station:
-                        self.current_station.face_position = "NONE"
+                elif record_type == 'comment':
+                    # Пропускаем комментарии
+                    pass
+                elif record_type == 'header':
+                    logger.info(f"Заголовок: {line[4:]}")
+                elif record_type == 'instrument':
+                    logger.info(f"Прибор: {line[4:]}")
 
             except Exception as e:
                 error_msg = f"Ошибка разбора строки {line_num}: {str(e)}"

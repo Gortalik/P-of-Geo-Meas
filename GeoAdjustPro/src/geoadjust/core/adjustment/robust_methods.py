@@ -41,6 +41,8 @@ class RobustMethods:
         - weights: массив весов для каждого измерения
         """
         abs_res = np.abs(residuals)
+        # Защита от деления на ноль
+        abs_res = np.maximum(abs_res, 1e-10)
         weights = np.where(abs_res <= c, 1.0, c / abs_res)
         return weights
 
@@ -132,7 +134,12 @@ class RobustMethods:
             except Exception as e:
                 logger.warning(f"Используем плотное решение на итерации {iteration}: {e}")
                 N_dense = N.toarray()
-                dx = np.linalg.solve(N_dense, U)
+                try:
+                    dx = np.linalg.solve(N_dense, U)
+                except np.linalg.LinAlgError:
+                    # При вырожденности используем lstsq
+                    logger.warning(f"Матрица вырождена на итерации {iteration}, используем lstsq")
+                    dx, _, _, _ = np.linalg.lstsq(N_dense, U, rcond=None)
 
             # Вычисление остатков
             residuals = A @ dx - L

@@ -3,6 +3,21 @@
 """
 Парсер формата Leica GSI (Geodetic Serial Interface)
 Поддержка версий 1.0, 8.0, 8.1, 8.2 с распознаванием информационных слов 11-88
+
+Реальный формат GSI (на основе тестовых данных):
+- Каждая строка содержит одно или несколько информационных слов
+- Формат слова: NNXXXXSDDDDDDDD где:
+  - NN - номер слова (2 цифры)
+  - XXXX - идентификатор точки (4 символа, может содержать точки)
+  - S - знак (+ или -)
+  - DDDDDDDD - значение (8 цифр)
+  
+Основные типы слов:
+- 11, 12: Направления (в гонах * 100000)
+- 31, 32: Зенитные расстояния/вертикальные углы
+- 33: Горизонтальные расстояния
+- 83: Высота инструмента
+- 87, 88: Высоты инструмента/цели
 """
 
 import re
@@ -38,7 +53,7 @@ class GSIWord:
     sign: str
     digits: str
     decimal_places: int
-    identifier: Optional[int] = None
+    identifier: Optional[str] = None
     value: float = 0.0
     raw: str = ""
 
@@ -75,6 +90,7 @@ class GSIObservation:
 class GSIParser:
     """Парсер формата Leica GSI"""
 
+    # Типы слов GSI для нивелирных данных
     WORD_TYPES = {
         '11': 'direction',
         '12': 'direction',
@@ -83,6 +99,15 @@ class GSIParser:
         '17': 'vertical_distance',
         '18': 'height_difference',
         '7': 'height_diff',
+        '31': 'zenith_angle',
+        '32': 'zenith_angle',
+        '33': 'horizontal_distance',
+        '34': 'slope_distance',
+        '35': 'height_difference',
+        '36': 'vertical_angle',
+        '81': 'point_coordinates',
+        '82': 'point_coordinates',
+        '83': 'instrument_height',
         '84': 'station',
         '85': 'target',
         '87': 'instrument_height',
@@ -90,9 +115,6 @@ class GSIParser:
         '41': 'temperature',
         '42': 'pressure',
         '43': 'humidity',
-        '81': 'point_coordinates',
-        '82': 'point_coordinates',
-        '83': 'point_coordinates',
     }
 
     def __init__(self):
@@ -104,28 +126,29 @@ class GSIParser:
         self.observations: List[GSIObservation] = []
         self.points: Dict[str, Dict[str, Any]] = {}
         self.encoding = 'cp1251'
+        self.current_point_id: Optional[str] = None
+        self.current_target_id: Optional[str] = None
 
     def _detect_encoding(self, file_path: Path) -> str:
         """Автоопределение кодировки файла"""
         with open(file_path, 'rb') as f:
             raw_data = f.read(4096)
 
-        result = chardet.detect(raw_data)
-        encoding = result['encoding']
-        confidence = result['confidence']
+        # GSI файлы обычно в ASCII или cp1251
+        try:
+            text = raw_data.decode('ascii')
+            return 'ascii'
+        except UnicodeDecodeError:
+            pass
 
-        if encoding in ['windows-1251', 'cp1251'] or (encoding == 'ascii' and confidence < 0.9):
-            try:
-                text = raw_data.decode('cp1251')
-                if any(c in text for c in 'абвгдеёжзийклмнопрстуфхцчшщъыьэюя'):
-                    return 'cp1251'
-            except:
-                pass
+        try:
+            text = raw_data.decode('cp1251')
+            if any(c in text for c in 'абвгдеёжзийклмнопрстуфхцчшщъыьэюя'):
+                return 'cp1251'
+        except UnicodeDecodeError:
+            pass
 
-        if encoding is None or confidence < 0.6:
-            return 'utf-8'
-
-        return encoding.lower()
+        return 'utf-8'
 
     def _detect_version(self, first_lines: List[str]) -> GSIVersion:
         """Определение версии формата GSI"""
@@ -139,37 +162,75 @@ class GSIParser:
             return GSIVersion.V1_0
 
     def _parse_gsi_word(self, word_str: str) -> Optional[GSIWord]:
-        """Разбор информационного слова GSI"""
-        pattern = r'(\d{2})\.(\d{6})([+-])(\d+)'
-
-        match = re.match(pattern, word_str.strip())
-        if not match:
+        """Разбор информационного слова GSI
+        
+        Реальный формат GSI:
+        - Позиции 1-2: номер слова (word number)
+        - Позиции 3-6: идентификатор точки
+        - Позиция 7: знак (+/-)
+        - Позиции 8-15: значение (8 цифр)
+        
+        Примеры:
+        - "110002+00R52267" -> word=11, id=0002, value=+00R52267
+        - "83..58+00000000" -> word=83, id=..58, value=+00000000
+        - "32...8+02293263" -> word=32, id=...8, value=+02293263
+        """
+        word_str = word_str.strip()
+        if len(word_str) < 8:
             return None
-
+        
         try:
-            word_num = int(match.group(1))
-            identifier = int(match.group(2))
-            sign = match.group(3)
-            digits = match.group(4)
-
+            # Извлекаем номер слова (первые 2 символа)
+            word_num_str = word_str[:2]
+            if not word_num_str.isdigit():
+                return None
+            word_num = int(word_num_str)
+            
+            # Извлекаем идентификатор (символы 3-6)
+            identifier_str = word_str[2:6]
+            
+            # Ищем знак и значение
+            sign_pos = word_str.find('+', 6)
+            if sign_pos == -1:
+                sign_pos = word_str.find('-', 6)
+            
+            if sign_pos == -1:
+                return None
+            
+            sign = word_str[sign_pos]
+            value_str = word_str[sign_pos + 1:]
+            
+            # Очищаем значение от нечисловых символов кроме цифр
+            clean_value = ''.join(c for c in value_str if c.isdigit())
+            if not clean_value:
+                return None
+            
+            # Определяем количество десятичных знаков в зависимости от номера слова
             decimal_places = 0
-            if word_num in [11, 12]:
+            if word_num in [11, 12]:  # Направления (в гонах * 100000)
                 decimal_places = 5
-            elif word_num in [15, 16, 17, 18]:
+            elif word_num in [15, 16, 17, 18, 33, 34, 35]:  # Расстояния (в мм)
                 decimal_places = 3
-            elif word_num == 7:
+            elif word_num == 7:  # Превышения (в мм)
                 decimal_places = 3
-
-            value = float(digits) / (10 ** decimal_places)
+            elif word_num in [31, 32, 36]:  # Углы (в гонах * 100000)
+                decimal_places = 5
+            elif word_num in [81, 82]:  # Координаты
+                decimal_places = 3
+            elif word_num in [83, 87, 88]:  # Высоты инструмента/цели
+                decimal_places = 4
+            
+            # Преобразуем значение
+            value = int(clean_value) / (10 ** decimal_places)
             if sign == '-':
                 value = -value
-
+            
             return GSIWord(
                 number=word_num,
                 sign=sign,
-                digits=digits,
+                digits=clean_value,
                 decimal_places=decimal_places,
-                identifier=identifier,
+                identifier=identifier_str,
                 value=value,
                 raw=word_str
             )
@@ -194,6 +255,7 @@ class GSIParser:
         station_id = f"STA_{word.identifier}"
 
         self.current_station = GSIStation(point_id=station_id)
+        self.current_point_id = station_id
 
         if station_id not in self.points:
             self.points[station_id] = {
@@ -207,15 +269,15 @@ class GSIParser:
         return station_id
 
     def _process_instrument_height(self, word: GSIWord):
-        """Обработка слова высоты инструмента (87)"""
+        """Обработка слова высоты инструмента (83, 87)"""
         if self.current_station:
-            self.current_station.instrument_height = word.value / 1000.0
-            self.current_setup['instrument_height'] = self.current_station.instrument_height
+            self.current_station.instrument_height = word.value
+            self.current_setup['instrument_height'] = word.value
 
     def _process_target_height(self, word: GSIWord):
         """Обработка слова высоты цели (88)"""
         if self.current_station:
-            self.current_setup['target_height'] = word.value / 1000.0
+            self.current_setup['target_height'] = word.value
 
     def _process_temperature(self, word: GSIWord):
         """Обработка слова температуры (41)"""
@@ -229,11 +291,16 @@ class GSIParser:
             self.current_station.pressure = word.value
             self.current_setup['pressure'] = word.value
 
+    def _get_point_id_from_words(self, words: List[GSIWord]) -> str:
+        """Извлечение идентификатора точки из слов"""
+        # Ищем первое слово с идентификатором
+        for word in words:
+            if word.identifier and word.identifier.strip('.'):
+                return word.identifier.strip('.')
+        return "UNKNOWN"
+
     def _process_direction(self, words: List[GSIWord], line_num: int):
         """Обработка направления (слова 11/12)"""
-        if not self.current_station:
-            return
-
         direction_word = None
         for word in words:
             if word.number in [11, 12]:
@@ -243,94 +310,166 @@ class GSIParser:
         if not direction_word:
             return
 
-        direction_degrees = direction_word.value / 100000.0
+        # Определяем точку стояния и точку визирования
+        from_point = self._get_point_id_from_words(words)
+        
+        # Если есть слово 83 (высота инструмента), это точка стояния
+        for word in words:
+            if word.number == 83:
+                self.current_point_id = from_point
+                break
+        
+        # Определяем точку визирования по идентификатору
+        to_point = f"TGT_{direction_word.identifier}" if direction_word.identifier else "UNKNOWN"
+        
+        # Значение направления в гонах
+        direction_gon = direction_word.value
 
         obs = GSIObservation(
             obs_type='direction',
-            from_point=self.current_station.point_id,
-            to_point=f"TGT_{direction_word.identifier}",
-            value=direction_degrees,
-            instrument_height=self.current_station.instrument_height,
-            circle_position=self.current_station.face_position,
-            reception_number=self.current_station.reception_number,
-            temperature=self.current_station.temperature,
-            pressure=self.current_station.pressure,
+            from_point=self.current_point_id or from_point,
+            to_point=to_point,
+            value=direction_gon,
+            instrument_height=self.current_setup.get('instrument_height'),
+            circle_position=self.current_station.face_position if self.current_station else CirclePosition.NONE,
+            reception_number=self.current_station.reception_number if self.current_station else None,
+            temperature=self.current_station.temperature if self.current_station else None,
+            pressure=self.current_station.pressure if self.current_station else None,
             line_number=line_num,
             raw_words=words
         )
 
         self.observations.append(obs)
+        
+        # Добавляем точки
+        if self.current_point_id and self.current_point_id not in self.points:
+            self.points[self.current_point_id] = {
+                'point_id': self.current_point_id,
+                'point_type': 'station',
+                'x': None,
+                'y': None,
+                'h': None
+            }
+        if to_point not in self.points:
+            self.points[to_point] = {
+                'point_id': to_point,
+                'point_type': 'target',
+                'x': None,
+                'y': None,
+                'h': None
+            }
 
     def _process_distance(self, words: List[GSIWord], line_num: int):
-        """Обработка расстояния (слова 15/16/17/18)"""
-        if not self.current_station:
-            return
-
+        """Обработка расстояния (слова 15/16/17/18/33/34)"""
         distance_word = None
         distance_type = 'slope'
 
         for word in words:
-            if word.number == 15:
+            if word.number == 15 or word.number == 34:
                 distance_word = word
-                distance_type = 'slope'
+                distance_type = 'slope_distance'
                 break
-            elif word.number == 16:
+            elif word.number == 16 or word.number == 33:
                 distance_word = word
-                distance_type = 'horizontal'
+                distance_type = 'horizontal_distance'
                 break
             elif word.number == 17:
                 distance_word = word
-                distance_type = 'vertical'
+                distance_type = 'vertical_distance'
                 break
-            elif word.number == 18:
+            elif word.number == 18 or word.number == 35:
                 distance_word = word
-                distance_type = 'height'
+                distance_type = 'height_difference'
                 break
 
         if not distance_word:
             return
 
-        distance_meters = distance_word.value / 1000.0
+        distance_meters = distance_word.value
+        to_point = f"TGT_{distance_word.identifier}" if distance_word.identifier else "UNKNOWN"
 
         obs = GSIObservation(
-            obs_type='distance',
-            from_point=self.current_station.point_id,
-            to_point=f"TGT_{distance_word.identifier}",
+            obs_type=distance_type,
+            from_point=self.current_point_id or "UNKNOWN",
+            to_point=to_point,
             value=distance_meters,
-            instrument_height=self.current_station.instrument_height,
+            instrument_height=self.current_setup.get('instrument_height'),
             target_height=self.current_setup.get('target_height'),
-            circle_position=self.current_station.face_position,
-            reception_number=self.current_station.reception_number,
-            temperature=self.current_station.temperature,
-            pressure=self.current_station.pressure,
+            circle_position=self.current_station.face_position if self.current_station else CirclePosition.NONE,
+            reception_number=self.current_station.reception_number if self.current_station else None,
+            temperature=self.current_station.temperature if self.current_station else None,
+            pressure=self.current_station.pressure if self.current_station else None,
             line_number=line_num,
             raw_words=words
         )
 
         self.observations.append(obs)
+        
+        if to_point not in self.points:
+            self.points[to_point] = {
+                'point_id': to_point,
+                'point_type': 'target',
+                'x': None,
+                'y': None,
+                'h': None
+            }
 
     def _process_height_diff(self, words: List[GSIWord], line_num: int):
-        """Обработка превышения (слово 7)"""
-        if not self.current_station:
-            return
-
+        """Обработка превышения (слово 7 или 35)"""
         height_word = None
         for word in words:
-            if word.number == 7:
+            if word.number == 7 or word.number == 35:
                 height_word = word
                 break
 
         if not height_word:
             return
 
-        height_diff = height_word.value / 1000.0
+        height_diff = height_word.value
+        to_point = f"TGT_{height_word.identifier}" if height_word.identifier else "UNKNOWN"
 
         obs = GSIObservation(
             obs_type='height_diff',
-            from_point=self.current_station.point_id,
-            to_point=f"TGT_{height_word.identifier}",
+            from_point=self.current_point_id or "UNKNOWN",
+            to_point=to_point,
             value=height_diff,
-            instrument_height=self.current_station.instrument_height,
+            instrument_height=self.current_setup.get('instrument_height'),
+            target_height=self.current_setup.get('target_height'),
+            line_number=line_num,
+            raw_words=words
+        )
+
+        self.observations.append(obs)
+        
+        if to_point not in self.points:
+            self.points[to_point] = {
+                'point_id': to_point,
+                'point_type': 'target',
+                'x': None,
+                'y': None,
+                'h': None
+            }
+
+    def _process_zenith_angle(self, words: List[GSIWord], line_num: int):
+        """Обработка зенитного угла (слова 31/32)"""
+        zenith_word = None
+        for word in words:
+            if word.number in [31, 32]:
+                zenith_word = word
+                break
+
+        if not zenith_word:
+            return
+
+        zenith_angle = zenith_word.value
+        to_point = f"TGT_{zenith_word.identifier}" if zenith_word.identifier else "UNKNOWN"
+
+        obs = GSIObservation(
+            obs_type='zenith_angle',
+            from_point=self.current_point_id or "UNKNOWN",
+            to_point=to_point,
+            value=zenith_angle,
+            instrument_height=self.current_setup.get('instrument_height'),
             target_height=self.current_setup.get('target_height'),
             line_number=line_num,
             raw_words=words
@@ -362,6 +501,7 @@ class GSIParser:
                 if not words:
                     continue
 
+                # Обрабатываем специальные слова
                 for word in words:
                     word_type = self.WORD_TYPES.get(str(word.number))
 
@@ -379,12 +519,17 @@ class GSIParser:
                         if self.current_station:
                             self.current_station.humidity = word.value
 
+                # Определяем тип измерений в строке
                 has_direction = any(w.number in [11, 12] for w in words)
-                has_distance = any(w.number in [15, 16, 17, 18] for w in words)
+                has_distance = any(w.number in [15, 16, 17, 18, 33, 34, 35] for w in words)
                 has_height = any(w.number == 7 for w in words)
+                has_zenith = any(w.number in [31, 32] for w in words)
 
                 if has_direction:
                     self._process_direction(words, line_num)
+                
+                if has_zenith:
+                    self._process_zenith_angle(words, line_num)
 
                 if has_distance:
                     self._process_distance(words, line_num)

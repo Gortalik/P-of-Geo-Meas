@@ -28,7 +28,8 @@ class PointsDockWidget(QDockWidget):
         self.setWidget(self.widget)
         
         layout = QVBoxLayout(self.widget)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(2, 2, 2, 2)
+        layout.setSpacing(2)
         
         # Таблица пунктов
         self.table_view = QTableView()
@@ -39,22 +40,29 @@ class PointsDockWidget(QDockWidget):
         
         layout.addWidget(self.table_view)
         
-        # Панель инструментов
+        # Панель инструментов - компактная
         toolbar = QHBoxLayout()
+        toolbar.setContentsMargins(0, 0, 0, 0)
+        toolbar.setSpacing(2)
         
         add_btn = QPushButton("+")
         add_btn.setToolTip("Добавить пункт")
-        add_btn.setMaximumWidth(30)
+        add_btn.setMaximumWidth(28)
+        add_btn.setMaximumHeight(24)
         toolbar.addWidget(add_btn)
         
         remove_btn = QPushButton("-")
         remove_btn.setToolTip("Удалить пункт")
-        remove_btn.setMaximumWidth(30)
+        remove_btn.setMaximumWidth(28)
+        remove_btn.setMaximumHeight(24)
         toolbar.addWidget(remove_btn)
         
         toolbar.addStretch()
         
         layout.addLayout(toolbar)
+        
+        # Установка минимального размера виджета
+        self.widget.setMinimumWidth(180)
 
 
 class ObservationsDockWidget(QDockWidget):
@@ -69,7 +77,8 @@ class ObservationsDockWidget(QDockWidget):
         self.setWidget(self.widget)
         
         layout = QVBoxLayout(self.widget)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(2, 2, 2, 2)
+        layout.setSpacing(2)
         
         # Таблица измерений
         self.table_view = QTableView()
@@ -80,22 +89,29 @@ class ObservationsDockWidget(QDockWidget):
         
         layout.addWidget(self.table_view)
         
-        # Панель инструментов
+        # Панель инструментов - компактная
         toolbar = QHBoxLayout()
+        toolbar.setContentsMargins(0, 0, 0, 0)
+        toolbar.setSpacing(2)
         
         add_btn = QPushButton("+")
         add_btn.setToolTip("Добавить измерение")
-        add_btn.setMaximumWidth(30)
+        add_btn.setMaximumWidth(28)
+        add_btn.setMaximumHeight(24)
         toolbar.addWidget(add_btn)
         
         remove_btn = QPushButton("-")
         remove_btn.setToolTip("Удалить измерение")
-        remove_btn.setMaximumWidth(30)
+        remove_btn.setMaximumWidth(28)
+        remove_btn.setMaximumHeight(24)
         toolbar.addWidget(remove_btn)
         
         toolbar.addStretch()
         
         layout.addLayout(toolbar)
+        
+        # Установка минимального размера виджета
+        self.widget.setMinimumWidth(180)
 
 
 class TraversesDockWidget(QDockWidget):
@@ -110,7 +126,8 @@ class TraversesDockWidget(QDockWidget):
         self.setWidget(self.widget)
         
         layout = QVBoxLayout(self.widget)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(2, 2, 2, 2)
+        layout.setSpacing(2)
         
         # Дерево ходов и секций
         self.tree_view = QTreeView()
@@ -119,19 +136,26 @@ class TraversesDockWidget(QDockWidget):
         
         layout.addWidget(self.tree_view)
         
-        # Панель инструментов
+        # Панель инструментов - компактная
         toolbar = QHBoxLayout()
+        toolbar.setContentsMargins(0, 0, 0, 0)
+        toolbar.setSpacing(2)
         
         add_btn = QPushButton("+")
         add_btn.setToolTip("Добавить ход/секцию")
-        add_btn.setMaximumWidth(30)
+        add_btn.setMaximumWidth(28)
+        add_btn.setMaximumHeight(24)
         toolbar.addWidget(add_btn)
         
         remove_btn = QPushButton("-")
         remove_btn.setToolTip("Удалить ход/секцию")
-        remove_btn.setMaximumWidth(30)
+        remove_btn.setMaximumWidth(28)
+        remove_btn.setMaximumHeight(24)
         toolbar.addWidget(remove_btn)
         
         toolbar.addStretch()
         
         layout.addLayout(toolbar)
+        
+        # Установка минимального размера виджета
+        self.widget.setMinimumWidth(180)

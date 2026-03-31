@@ -1,23 +1,22 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Парсер формата Leica DAT (Data ASCII Transfer)
-Поддержка версий v1.0 - v4.0
+Парсер формата цифровых нивелиров (Leica DNA/Trimble DiNi DAT)
 
-Формат файла DAT:
-- Каждая строка начинается с идентификатора записи (2 символа)
-- Структура: идентификатор + данные + разделитель
-- Пример: "00NMul.POKLONNAYA"
+Реальный формат DAT (на основе тестовых данных):
+- Файл содержит данные цифрового нивелирования
+- Формат строк с разделителями | (pipe)
+- Типы измерений:
+  - Rb: Отсчёт по задней рейке (Backsight reading)
+  - Rf: Отсчёт по передней рейке (Foresight reading)
+  - Rz: Отсчёт по промежуточной рейке (Intermediate sight reading)
+  - HD: Горизонтальное расстояние
+  - Z: Превышение
 
-Идентификаторы записей:
-- 00: Заголовок файла
-- 01: Информация о приборе
-- 02: Информация о станции
-- 03: Высота инструмента
-- 04: Высота цели
-- 09: Измерение (направление, расстояние)
-- 10: Номер приёма
-- 50: Конец измерения
+Структура нивелирного хода:
+- Станция (KD1) с задней (Rb) и передней (Rf) рейками
+- Промежуточные точки (Rz)
+- Превышения (Z) вычисляются
 """
 
 import re
@@ -33,272 +32,319 @@ logger = logging.getLogger(__name__)
 
 class DATRecordType(Enum):
     """Тип записи в файле DAT"""
-    HEADER = "00"
-    INSTRUMENT = "01"
-    STATION = "02"
-    INSTRUMENT_HEIGHT = "03"
-    TARGET_HEIGHT = "04"
-    MEASUREMENT = "09"
-    RECEPTION_NUMBER = "10"
-    END_MEASUREMENT = "50"
+    HEADER = "header"
+    STATION = "station"
+    BACKSIGHT = "backsight"
+    FORESIGHT = "foresight"
+    INTERMEDIATE = "intermediate"
+    HEIGHT_DIFF = "height_diff"
+    LINE_START = "line_start"
+    LINE_END = "line_end"
 
 
 @dataclass
 class DATStation:
-    """Станция в формате DAT"""
-    point_id: str
-    instrument_height: Optional[float] = None
-    target_height: Optional[float] = None
-    instrument_type: Optional[str] = None
-    instrument_serial: Optional[str] = None
+    """Станция нивелирования"""
+    station_number: int
+    backsight_point: str
+    foresight_point: str
+    backsight_reading: Optional[float] = None
+    foresight_reading: Optional[float] = None
+    backsight_distance: Optional[float] = None
+    foresight_distance: Optional[float] = None
+    height_diff: Optional[float] = None
 
 
 @dataclass
 class DATObservation:
     """Измерение в формате DAT"""
-    obs_type: str  # 'direction', 'distance', 'azimuth'
+    obs_type: str  # 'backsight', 'foresight', 'intermediate', 'height_diff'
     from_point: str
     to_point: str
-    value: float
-    instrument_height: Optional[float] = None
-    target_height: Optional[float] = None
-    reception_number: Optional[int] = None
+    value: float  # Отсчёт по рейке или превышение
+    distance: Optional[float] = None
     line_number: int = 0
     raw_data: str = ""
 
 
 class DATParser:
-    """Парсер формата Leica DAT"""
+    """Парсер формата цифровых нивелиров DAT"""
 
     def __init__(self):
-        self.errors = []
-        self.warnings = []
-        self.current_station: Optional[str] = None
-        self.current_setup: Dict[str, Any] = {}
+        self.errors: List[Dict[str, Any]] = []
+        self.warnings: List[Dict[str, Any]] = []
         self.observations: List[DATObservation] = []
         self.points: Dict[str, Dict[str, Any]] = {}
         self.encoding = 'cp1251'
         self.version = "unknown"
         self.header_info: Dict[str, Any] = {}
-        self.instrument_info: Dict[str, Any] = {}
+        self.current_station: Optional[DATStation] = None
+        self.current_backsight_point: Optional[str] = None
+        self.current_foresight_point: Optional[str] = None
+        self.station_counter = 0
+        self.line_name: str = ""
 
     def _detect_encoding(self, file_path: Path) -> str:
         """Автоопределение кодировки файла"""
         with open(file_path, 'rb') as f:
             raw_data = f.read(4096)
 
-        result = chardet.detect(raw_data)
-        encoding = result['encoding']
-        confidence = result['confidence']
-
-        # Коррекция для типичных геодезических форматов
-        if encoding in ['windows-1251', 'cp1251'] or (encoding == 'ascii' and confidence < 0.9):
-            try:
-                text = raw_data.decode('cp1251')
-                if any(c in text for c in 'абвгдеёжзийклмнопрстуфхцчшщъыьэюя'):
-                    return 'cp1251'
-            except:
-                pass
-
-        if encoding is None or confidence < 0.6:
-            return 'utf-8'
-
-        return encoding.lower()
-
-    def _parse_header(self, line: str) -> Dict[str, Any]:
-        """Парсинг заголовка файла (запись 00)"""
-        # Формат заголовка: 00NM<версия><серийный номер><дата><время><параметры>
-        # Пример: 00NMSDR33 V04-04.02 25-ФЕВ-02 18:20 111111
+        try:
+            text = raw_data.decode('ascii')
+            return 'ascii'
+        except UnicodeDecodeError:
+            pass
 
         try:
-            # Извлечение версии
-            version_match = re.search(r'SDR(\d+)', line)
-            if version_match:
-                self.version = f"SDR{version_match.group(1)}"
+            text = raw_data.decode('cp1251')
+            if any(c in text for c in 'абвгдеёжзийклмнопрстуфхцчшщъыьэюя'):
+                return 'cp1251'
+        except UnicodeDecodeError:
+            pass
 
-            # Извлечение даты и времени
-            date_match = re.search(r'(\d{2}-[А-ЯЁ]{3}-\d{2})', line)
-            time_match = re.search(r'(\d{2}:\d{2})', line)
+        return 'utf-8'
 
-            header_info = {
-                'version': self.version,
-                'date': date_match.group(1) if date_match else None,
-                'time': time_match.group(1) if time_match else None,
-                'raw': line
-            }
+    def _parse_float(self, s: str) -> Optional[float]:
+        """Парсинг числа из строки с удалением единиц измерения"""
+        if not s:
+            return None
+        s = s.strip()
+        # Удаляем единицы измерения
+        s = re.sub(r'\s*m\s*$', '', s)
+        s = s.strip()
+        try:
+            return float(s)
+        except ValueError:
+            return None
 
-            self.header_info = header_info
-            return header_info
+    def _parse_field(self, line: str, field_num: int) -> str:
+        """Извлечение поля из строки с разделителями |"""
+        parts = line.split('|')
+        if field_num < len(parts):
+            return parts[field_num].strip()
+        return ""
+
+    def _parse_header(self, line: str):
+        """Парсинг заголовка"""
+        try:
+            # Формат: For M5|Adr     1|TO  <имя файла>
+            field3 = self._parse_field(line, 2)
+            if field3.startswith('TO'):
+                self.line_name = field3[2:].strip()
+                self.header_info['line_name'] = self.line_name
         except Exception as e:
             logger.warning(f"Ошибка парсинга заголовка: {e}")
-            self._add_warning(f"Ошибка парсинга заголовка: {e}")
-            return {}
 
-    def _parse_instrument_info(self, line: str) -> Dict[str, Any]:
-        """Парсинг информации о приборе (запись 01)"""
-        # Формат: 01NM<модель> <серийный номер>
-        # Пример: 01NMul.POKLONNAYA 121111
-
+    def _parse_station_line(self, line: str):
+        """Парсинг строки станции (KD1)
+        
+        Формат: For M5|Adr     3|KD1       R3                  1|...|Z         0.00000 m   |
+        """
         try:
-            # Разделение на части
-            parts = line[4:].strip().split()
-
-            instrument_info = {
-                'model': parts[0] if len(parts) > 0 else 'unknown',
-                'serial_number': parts[1] if len(parts) > 1 else 'unknown'
-            }
-
-            self.instrument_info = instrument_info
-            return instrument_info
-        except Exception as e:
-            logger.warning(f"Ошибка парсинга информации о приборе: {e}")
-            self._add_warning(f"Ошибка парсинга информации о приборе: {e}")
-            return {}
-
-    def _parse_station(self, line: str) -> str:
-        """Парсинг информации о станции (запись 02)"""
-        # Формат: 02NM<имя станции>
-        # Пример: 02NM1.00000000
-
-        try:
-            station_name = line[4:].strip()
-
-            # Создание станции
-            if station_name not in self.points:
-                self.points[station_name] = {
-                    'point_id': station_name,
-                    'point_type': 'station'
-                }
-
-            self.current_station = station_name
-            self.current_setup = {}
-
-            return station_name
+            field3 = self._parse_field(line, 2)
+            parts = field3.split()
+            
+            if len(parts) >= 2 and parts[0] == 'KD1':
+                point_id = parts[1]
+                self.current_backsight_point = point_id
+                
+                if point_id not in self.points:
+                    self.points[point_id] = {
+                        'point_id': point_id,
+                        'point_type': 'benchmark',
+                        'h': None
+                    }
         except Exception as e:
             logger.warning(f"Ошибка парсинга станции: {e}")
-            self._add_warning(f"Ошибка парсинга станции: {e}")
-            return "unknown"
 
-    def _parse_instrument_height(self, line: str) -> float:
-        """Парсинг высоты инструмента (запись 03)"""
-        # Формат: 03NM<высота>
-        # Пример: 03NM1.522
-
+    def _parse_backsight(self, line: str, line_num: int):
+        """Парсинг отсчёта по задней рейке
+        
+        Формат: For M5|Adr     5|KD1       R3      03:16:181   1|Rb        1.80631 m   |HD         28.535 m   |
+        """
         try:
-            height_str = line[4:].strip()
-            height = float(height_str)
-
-            if self.current_station:
-                self.current_setup['instrument_height'] = height
-
-            return height
+            field3 = self._parse_field(line, 2)
+            field4 = self._parse_field(line, 3)
+            field5 = self._parse_field(line, 4)
+            
+            parts = field3.split()
+            if len(parts) >= 2:
+                point_id = parts[1]
+            
+            # Парсим отсчёт по рейке
+            if field4.startswith('Rb'):
+                reading_str = field4[2:].strip()
+                reading = self._parse_float(reading_str)
+                
+                # Парсим расстояние
+                distance = None
+                if field5.startswith('HD'):
+                    dist_str = field5[2:].strip()
+                    distance = self._parse_float(dist_str)
+                
+                if reading is not None:
+                    obs = DATObservation(
+                        obs_type='backsight',
+                        from_point='STATION',
+                        to_point=point_id,
+                        value=reading,
+                        distance=distance,
+                        line_number=line_num,
+                        raw_data=line
+                    )
+                    self.observations.append(obs)
+                    
+                    if point_id not in self.points:
+                        self.points[point_id] = {
+                            'point_id': point_id,
+                            'point_type': 'benchmark',
+                            'h': None
+                        }
+                    
+                    self.current_backsight_point = point_id
+                    
         except Exception as e:
-            logger.warning(f"Ошибка парсинга высоты инструмента: {e}")
-            self._add_warning(f"Ошибка парсинга высоты инструмента: {e}")
-            return 0.0
+            logger.warning(f"Ошибка парсинга задней рейки в строке {line_num}: {e}")
 
-    def _parse_target_height(self, line: str) -> float:
-        """Парсинг высоты цели (запись 04)"""
-        # Формат: 04NM<высота>
-        # Пример: 04NM1.500
-
+    def _parse_foresight(self, line: str, line_num: int):
+        """Парсинг отсчёта по передней рейке
+        
+        Формат: For M5|Adr     6|KD1        1      03:16:521   1|Rf        1.07539 m   |HD         28.524 m   |
+        """
         try:
-            height_str = line[4:].strip()
-            height = float(height_str)
-
-            if self.current_station:
-                self.current_setup['target_height'] = height
-
-            return height
+            field3 = self._parse_field(line, 2)
+            field4 = self._parse_field(line, 3)
+            field5 = self._parse_field(line, 4)
+            
+            parts = field3.split()
+            if len(parts) >= 2:
+                point_id = parts[1]
+            
+            if field4.startswith('Rf'):
+                reading_str = field4[2:].strip()
+                reading = self._parse_float(reading_str)
+                
+                distance = None
+                if field5.startswith('HD'):
+                    dist_str = field5[2:].strip()
+                    distance = self._parse_float(dist_str)
+                
+                if reading is not None:
+                    obs = DATObservation(
+                        obs_type='foresight',
+                        from_point='STATION',
+                        to_point=point_id,
+                        value=reading,
+                        distance=distance,
+                        line_number=line_num,
+                        raw_data=line
+                    )
+                    self.observations.append(obs)
+                    
+                    if point_id not in self.points:
+                        self.points[point_id] = {
+                            'point_id': point_id,
+                            'point_type': 'turning_point',
+                            'h': None
+                        }
+                    
+                    self.current_foresight_point = point_id
+                    
         except Exception as e:
-            logger.warning(f"Ошибка парсинга высоты цели: {e}")
-            self._add_warning(f"Ошибка парсинга высоты цели: {e}")
-            return 0.0
+            logger.warning(f"Ошибка парсинга передней рейки в строке {line_num}: {e}")
 
-    def _parse_measurement(self, line: str, line_num: int) -> Optional[DATObservation]:
-        """Парсинг измерения (запись 09)"""
-        # Формат: 09F1 <станция> <цель> <азимут> <зенит> <горизонтальное расстояние>
-        # Пример: 09F1 St 1 St 5155.5647 89.59222 44.14056
-
-        if not self.current_station:
-            return None
-
+    def _parse_intermediate(self, line: str, line_num: int):
+        """Парсинг промежуточной точки
+        
+        Формат: For M5|Adr    12|KD1      3.1      03:19:301   1|Rz        1.04744 m   |HD          9.964 m   |Z         1.21187 m   |
+        """
         try:
-            # Разделение на части
-            parts = line[4:].strip().split()
-
-            if len(parts) < 6:
-                return None
-
-            # Извлечение данных
-            from_point = parts[0] + " " + parts[1]
-            to_point = parts[2] + " " + parts[3]
-            azimuth = float(parts[4])  # Азимут в градусах
-            zenith = float(parts[5])  # Зенитный угол в градусах
-            distance = float(parts[6]) if len(parts) > 6 else None  # Горизонтальное расстояние
-
-            # Создание измерения направления
-            obs = DATObservation(
-                obs_type='direction',
-                from_point=self.current_station,
-                to_point=to_point,
-                value=azimuth,
-                instrument_height=self.current_setup.get('instrument_height'),
-                target_height=self.current_setup.get('target_height'),
-                reception_number=self.current_setup.get('reception_number'),
-                line_number=line_num,
-                raw_data=line
-            )
-
-            return obs
-
+            field3 = self._parse_field(line, 2)
+            field4 = self._parse_field(line, 3)
+            field5 = self._parse_field(line, 4)
+            field6 = self._parse_field(line, 5)
+            
+            parts = field3.split()
+            if len(parts) >= 2:
+                point_id = parts[1]
+            
+            if field4.startswith('Rz'):
+                reading_str = field4[2:].strip()
+                reading = self._parse_float(reading_str)
+                
+                distance = None
+                if field5.startswith('HD'):
+                    dist_str = field5[2:].strip()
+                    distance = self._parse_float(dist_str)
+                
+                height_diff = None
+                if field6.startswith('Z'):
+                    z_str = field6[1:].strip()
+                    height_diff = self._parse_float(z_str)
+                
+                if reading is not None:
+                    obs = DATObservation(
+                        obs_type='intermediate',
+                        from_point='STATION',
+                        to_point=point_id,
+                        value=reading,
+                        distance=distance,
+                        line_number=line_num,
+                        raw_data=line
+                    )
+                    self.observations.append(obs)
+                    
+                    if height_diff is not None:
+                        obs_h = DATObservation(
+                            obs_type='height_diff',
+                            from_point=self.current_backsight_point or 'UNKNOWN',
+                            to_point=point_id,
+                            value=height_diff,
+                            line_number=line_num,
+                            raw_data=line
+                        )
+                        self.observations.append(obs_h)
+                    
+                    if point_id not in self.points:
+                        self.points[point_id] = {
+                            'point_id': point_id,
+                            'point_type': 'intermediate',
+                            'h': None
+                        }
+                    
         except Exception as e:
-            logger.warning(f"Ошибка парсинга измерения в строке {line_num}: {e}")
-            self._add_error(f"Ошибка парсинга измерения в строке {line_num}: {e}", line_num)
-            return None
+            logger.warning(f"Ошибка парсинга промежуточной точки в строке {line_num}: {e}")
 
-    def _parse_reception_number(self, line: str) -> int:
-        """Парсинг номера приёма (запись 10)"""
-        # Формат: 10NM<номер приёма>
-        # Пример: 10NM1
-
+    def _parse_height_diff(self, line: str, line_num: int):
+        """Парсинг превышения
+        
+        Формат: For M5|Adr     7|KD1        1      03:16:52    1|                      |                      |Z         0.73092 m   |
+        """
         try:
-            reception_str = line[4:].strip()
-            reception_num = int(reception_str)
-
-            if self.current_station:
-                self.current_setup['reception_number'] = reception_num
-
-            return reception_num
+            field6 = self._parse_field(line, 5)
+            
+            if field6.startswith('Z'):
+                z_str = field6[1:].strip()
+                height_diff = self._parse_float(z_str)
+                
+                if height_diff is not None and self.current_backsight_point and self.current_foresight_point:
+                    obs = DATObservation(
+                        obs_type='height_diff',
+                        from_point=self.current_backsight_point,
+                        to_point=self.current_foresight_point,
+                        value=height_diff,
+                        line_number=line_num,
+                        raw_data=line
+                    )
+                    self.observations.append(obs)
+                    
         except Exception as e:
-            logger.warning(f"Ошибка парсинга номера приёма: {e}")
-            self._add_warning(f"Ошибка парсинга номера приёма: {e}")
-            return 1
-
-    def _add_error(self, message: str, line: int = None):
-        """Добавление ошибки в список"""
-        error = {'message': message, 'line': line}
-        self.errors.append(error)
-
-    def _add_warning(self, message: str, line: int = None):
-        """Добавление предупреждения в список"""
-        warning = {'message': message, 'line': line}
-        self.warnings.append(warning)
+            logger.warning(f"Ошибка парсинга превышения в строке {line_num}: {e}")
 
     def parse(self, file_path: Path) -> Dict[str, Any]:
-        """
-        Парсинг файла DAT с полной обработкой структуры:
-        - Заголовок файла (00)
-        - Информация о приборе (01)
-        - Станции (02)
-        - Высоты инструмента/цели (03/04)
-        - Измерения (09)
-        - Номера приёмов (10)
-        """
-        # Определение кодировки
+        """Парсинг файла DAT"""
         self.encoding = self._detect_encoding(file_path)
 
-        # Чтение файла
         with open(file_path, 'r', encoding=self.encoding, errors='ignore') as f:
             lines = f.readlines()
 
@@ -306,54 +352,53 @@ class DATParser:
         logger.info(f"Кодировка: {self.encoding}")
         logger.info(f"Строк в файле: {len(lines)}")
 
-        # Обработка строк
         for line_num, line in enumerate(lines, 1):
             line = line.strip()
             if not line:
                 continue
 
             try:
-                # Извлечение идентификатора записи (первые 2 символа)
-                if len(line) < 4:
-                    continue
-
-                record_id = line[:2]
-                record_type = line[2:4]
-
-                # Обработка записи в зависимости от типа
-                if record_id == '00':
-                    self._parse_header(line)
-
-                elif record_id == '01':
-                    self._parse_instrument_info(line)
-
-                elif record_id == '02':
-                    self._parse_station(line)
-
-                elif record_id == '03':
-                    self._parse_instrument_height(line)
-
-                elif record_id == '04':
-                    self._parse_target_height(line)
-
-                elif record_id == '09':
-                    obs = self._parse_measurement(line, line_num)
-                    if obs:
-                        self.observations.append(obs)
-
-                elif record_id == '10':
-                    self._parse_reception_number(line)
-
-                elif record_id == '50':
-                    # Конец измерения - сброс текущей установки
-                    self.current_setup = {}
+                # Определяем тип строки по содержимому
+                if 'TO' in line and '|' in line:
+                    # Это может быть заголовок или начало/конец хода
+                    field3 = self._parse_field(line, 2)
+                    if 'Start-Line' in field3:
+                        self._parse_header(line)
+                    elif 'End-Line' in field3:
+                        pass  # Конец хода
+                    else:
+                        self._parse_header(line)
+                elif 'KD1' in line and '|' in line:
+                    field3 = self._parse_field(line, 2)
+                    field4 = self._parse_field(line, 3)
+                    
+                    if 'Rb' in field4:
+                        self._parse_backsight(line, line_num)
+                    elif 'Rf' in field4:
+                        self._parse_foresight(line, line_num)
+                    elif 'Rz' in field4:
+                        self._parse_intermediate(line, line_num)
+                    elif field3.strip().startswith('KD1'):
+                        # Строка станции без отсчёта
+                        self._parse_station_line(line)
+                    
+                    # Проверяем на превышение
+                    if 'Z' in self._parse_field(line, 5):
+                        self._parse_height_diff(line, line_num)
+                elif 'Intermediate sight' in line:
+                    pass  # Начало/конец промежуточных точек
+                elif 'Reading' in line:
+                    pass  # Информация о считывании
 
             except Exception as e:
                 error_msg = f"Ошибка разбора строки {line_num}: {str(e)}"
                 logger.error(error_msg)
-                self._add_error(error_msg, line_num)
+                self.errors.append({
+                    'line': line_num,
+                    'message': error_msg,
+                    'raw_line': line[:100]
+                })
 
-        # Формирование результата
         result = {
             'format': 'DAT',
             'version': self.version,
@@ -366,7 +411,6 @@ class DATParser:
             'errors': self.errors,
             'warnings': self.warnings,
             'header_info': self.header_info,
-            'instrument_info': self.instrument_info,
             'success': len(self.errors) == 0
         }
 
@@ -391,7 +435,6 @@ class DATParser:
             'warnings': len(self.warnings)
         }
 
-        # Статистика по типам измерений
         for obs in self.observations:
             obs_type = obs.obs_type
             stats['by_type'][obs_type] = stats['by_type'].get(obs_type, 0) + 1
@@ -399,12 +442,8 @@ class DATParser:
         return stats
 
 
-# Пример использования
 if __name__ == "__main__":
-    # Пример использования парсера
     parser = DATParser()
-
-    # Путь к файлу (замените на ваш путь)
     file_path = Path("Пример_DAT.txt")
 
     if file_path.exists():
@@ -425,16 +464,14 @@ if __name__ == "__main__":
         for obs_type, count in stats['by_type'].items():
             print(f"  {obs_type}: {count}")
 
-        # Вывод первых 5 измерений
         if result['observations']:
             print(f"\nПервые 5 измерений:")
             for i, obs in enumerate(result['observations'][:5], 1):
                 print(f"  {i}. {obs.obs_type:15} {obs.from_point} → {obs.to_point:10} = {obs.value:.6f}")
 
-        # Вывод ошибок
         if result['errors']:
             print(f"\nОшибки парсинга:")
-            for error in result['errors'][:5]:  # Первые 5 ошибок
+            for error in result['errors'][:5]:
                 print(f"  Строка {error['line']}: {error['message']}")
     else:
         print(f"Файл {file_path} не найден!")

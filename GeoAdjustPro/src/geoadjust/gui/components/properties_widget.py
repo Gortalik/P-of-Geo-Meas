@@ -22,30 +22,37 @@ class PropertiesWidget(QWidget):
         super().__init__(parent)
         
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(2, 2, 2, 2)
+        layout.setSpacing(2)
         
         # Заголовок
         self.title_label = QLabel("Свойства")
-        self.title_label.setStyleSheet("font-weight: bold; font-size: 12px; padding: 5px;")
+        self.title_label.setStyleSheet("font-weight: bold; font-size: 11px; padding: 3px;")
         layout.addWidget(self.title_label)
         
         # Контейнер свойств
         self.properties_container = QWidget()
         self.properties_layout = QFormLayout(self.properties_container)
         self.properties_layout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
+        self.properties_layout.setContentsMargins(0, 0, 0, 0)
+        self.properties_layout.setSpacing(2)
         
         layout.addWidget(self.properties_container)
         layout.addStretch()
         
-        # Кнопки действий
+        # Кнопки действий - компактные
         actions_layout = QHBoxLayout()
+        actions_layout.setContentsMargins(0, 0, 0, 0)
+        actions_layout.setSpacing(2)
         
         apply_btn = QPushButton("Применить")
         apply_btn.clicked.connect(self._apply_changes)
+        apply_btn.setMaximumHeight(24)
         actions_layout.addWidget(apply_btn)
         
         reset_btn = QPushButton("Сбросить")
         reset_btn.clicked.connect(self._reset_changes)
+        reset_btn.setMaximumHeight(24)
         actions_layout.addWidget(reset_btn)
         
         layout.addLayout(actions_layout)
@@ -53,6 +60,9 @@ class PropertiesWidget(QWidget):
         # Текущий объект
         self.current_object = None
         self.property_widgets = {}
+        
+        # Установка минимального размера виджета
+        self.setMinimumSize(180, 200)
     
     def set_point_properties(self, point_id: str, properties: dict):
         """Установка свойств пункта"""

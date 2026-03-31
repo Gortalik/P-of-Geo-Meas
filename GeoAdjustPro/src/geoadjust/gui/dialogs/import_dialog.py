@@ -40,6 +40,8 @@ class ImportWorker(QThread):
                 result = self._import_gsi()
             elif self.format_type == 'sdr':
                 result = self._import_sdr()
+            elif self.format_type == 'pos':
+                result = self._import_pos()
             elif self.format_type == 'csv':
                 result = self._import_csv()
             elif self.format_type == 'txt':
@@ -55,54 +57,177 @@ class ImportWorker(QThread):
             self.import_error.emit(str(e))
     
     def _import_dat(self) -> Dict:
-        """Импорт из формата DAT (КРЕДО)"""
+        """Импорт из формата DAT (цифровые нивелиры)"""
         from geoadjust.io.formats.dat import DATParser
+        from pathlib import Path
         
         self.progress_updated.emit(30, "Парсинг DAT файла...")
         
         parser = DATParser()
-        data = parser.parse_file(self.file_path)
+        data = parser.parse(Path(self.file_path))
         
         self.progress_updated.emit(80, "Обработка данных...")
         
+        # Конвертация в формат, ожидаемый приложением
+        points = []
+        for p in data.get('points', []):
+            points.append({
+                'name': p.get('point_id', ''),
+                'x': p.get('x', 0) or 0,
+                'y': p.get('y', 0) or 0,
+                'h': p.get('h', 0) or 0,
+                'type': p.get('point_type', 'free')
+            })
+        
+        observations = []
+        for obs in data.get('observations', []):
+            observations.append({
+                'from_point': getattr(obs, 'from_point', ''),
+                'to_point': getattr(obs, 'to_point', ''),
+                'type': getattr(obs, 'obs_type', 'height_diff'),
+                'value': getattr(obs, 'value', 0),
+                'sigma': getattr(obs, 'std_dev', 0.005)
+            })
+        
         return {
-            'points': data.get('points', []),
-            'observations': data.get('observations', []),
-            'metadata': data.get('metadata', {})
+            'points': points,
+            'observations': observations,
+            'metadata': data.get('header_info', {})
         }
     
     def _import_gsi(self) -> Dict:
         """Импорт из формата GSI (Leica)"""
         from geoadjust.io.formats.gsi import GSIParser
+        from pathlib import Path
         
         self.progress_updated.emit(30, "Парсинг GSI файла...")
         
         parser = GSIParser()
-        data = parser.parse_file(self.file_path)
+        data = parser.parse(Path(self.file_path))
         
         self.progress_updated.emit(80, "Обработка данных...")
         
+        # Конвертация в формат, ожидаемый приложением
+        points = []
+        for p in data.get('points', []):
+            points.append({
+                'name': p.get('point_id', ''),
+                'x': p.get('x', 0) or 0,
+                'y': p.get('y', 0) or 0,
+                'h': p.get('h', 0) or 0,
+                'type': p.get('point_type', 'free')
+            })
+        
+        observations = []
+        for obs in data.get('observations', []):
+            observations.append({
+                'from_point': getattr(obs, 'from_point', ''),
+                'to_point': getattr(obs, 'to_point', ''),
+                'type': getattr(obs, 'obs_type', 'direction'),
+                'value': getattr(obs, 'value', 0),
+                'sigma': getattr(obs, 'std_dev', 0.00005)
+            })
+        
         return {
-            'points': data.get('points', []),
-            'observations': data.get('observations', []),
-            'metadata': data.get('metadata', {})
+            'points': points,
+            'observations': observations,
+            'metadata': {'version': data.get('version', ''), 'encoding': data.get('encoding', '')}
         }
     
     def _import_sdr(self) -> Dict:
         """Импорт из формата SDR (Sokkia)"""
         from geoadjust.io.formats.sdr import SDRParser
+        from pathlib import Path
         
         self.progress_updated.emit(30, "Парсинг SDR файла...")
         
         parser = SDRParser()
-        data = parser.parse_file(self.file_path)
+        data = parser.parse(Path(self.file_path))
         
         self.progress_updated.emit(80, "Обработка данных...")
         
+        # Конвертация в формат, ожидаемый приложением
+        points = []
+        for p in data.get('points', []):
+            points.append({
+                'name': p.get('point_id', ''),
+                'x': p.get('x', 0) or 0,
+                'y': p.get('y', 0) or 0,
+                'h': p.get('h', 0) or 0,
+                'type': p.get('point_type', 'free')
+            })
+        
+        observations = []
+        for obs in data.get('observations', []):
+            observations.append({
+                'from_point': getattr(obs, 'from_point', ''),
+                'to_point': getattr(obs, 'to_point', ''),
+                'type': getattr(obs, 'obs_type', 'direction'),
+                'value': getattr(obs, 'value', 0),
+                'sigma': getattr(obs, 'std_dev', 0.00005)
+            })
+        
         return {
-            'points': data.get('points', []),
-            'observations': data.get('observations', []),
-            'metadata': data.get('metadata', {})
+            'points': points,
+            'observations': observations,
+            'metadata': {'job_name': data.get('job_name', ''), 'encoding': data.get('encoding', '')}
+        }
+    
+    def _import_pos(self) -> Dict:
+        """Импорт из формата POS (RTKLIB GNSS векторы)"""
+        from geoadjust.io.formats.pos import POSParser
+        from pathlib import Path
+        
+        self.progress_updated.emit(30, "Парсинг POS файла...")
+        
+        parser = POSParser()
+        data = parser.parse(Path(self.file_path))
+        
+        self.progress_updated.emit(80, "Обработка данных...")
+        
+        # Получаем GNSS вектор
+        vector = parser.get_gnss_vector()
+        
+        points = []
+        observations = []
+        
+        if vector:
+            # Добавляем точки
+            points.append({
+                'name': vector.from_station,
+                'x': 0, 'y': 0, 'h': 0,
+                'type': 'fixed'
+            })
+            points.append({
+                'name': vector.to_station,
+                'x': 0, 'y': 0, 'h': 0,
+                'type': 'free'
+            })
+            
+            # Добавляем GNSS вектор как измерение
+            observations.append({
+                'from_point': vector.from_station,
+                'to_point': vector.to_station,
+                'type': 'gnss_vector',
+                'value': 0,  # Базовое значение
+                'sigma': (vector.sigma_dx + vector.sigma_dy + vector.sigma_dz) / 3,
+                'delta_x': vector.dx,
+                'delta_y': vector.dy,
+                'delta_z': vector.dz,
+                'sigma_x': vector.sigma_dx,
+                'sigma_y': vector.sigma_dy,
+                'sigma_z': vector.sigma_dz
+            })
+        
+        return {
+            'points': points,
+            'observations': observations,
+            'metadata': {
+                'from_station': data.get('from_station', ''),
+                'to_station': data.get('to_station', ''),
+                'ref_position': data.get('ref_position', None),
+                'num_epochs': data.get('num_epochs', 0)
+            }
         }
     
     def _import_csv(self) -> Dict:
@@ -285,9 +410,10 @@ class ImportDialog(QDialog):
         self.format_combo = QComboBox()
         self.format_combo.addItems([
             "Автоопределение",
-            "DAT (КРЕДО)",
+            "DAT (цифровые нивелиры)",
             "GSI (Leica)",
             "SDR (Sokkia)",
+            "POS (RTKLIB GNSS)",
             "CSV (разделители запятыми)",
             "TXT (текстовый файл)"
         ])
@@ -390,10 +516,11 @@ class ImportDialog(QDialog):
             self,
             "Выбор файла для импорта",
             "",
-            "Все поддерживаемые (*.dat *.gsi *.sdr *.csv *.txt);;"
+            "Все поддерживаемые (*.dat *.gsi *.sdr *.pos *.csv *.txt);;"
             "DAT файлы (*.dat);;"
             "GSI файлы (*.gsi);;"
             "SDR файлы (*.sdr);;"
+            "POS файлы (*.pos);;"
             "CSV файлы (*.csv);;"
             "Текстовые файлы (*.txt);;"
             "Все файлы (*)"
@@ -438,8 +565,9 @@ class ImportDialog(QDialog):
                 '.dat': 1,
                 '.gsi': 2,
                 '.sdr': 3,
-                '.csv': 4,
-                '.txt': 5
+                '.pos': 4,
+                '.csv': 5,
+                '.txt': 6
             }
             
             if ext in format_map and self.format_combo.currentIndex() == 0:
@@ -462,8 +590,9 @@ class ImportDialog(QDialog):
             1: 'dat',
             2: 'gsi',
             3: 'sdr',
-            4: 'csv',
-            5: 'txt'
+            4: 'pos',
+            5: 'csv',
+            6: 'txt'
         }
         format_type = format_map[format_index]
         

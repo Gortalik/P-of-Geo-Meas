@@ -108,14 +108,13 @@ class FreeNetworkAdjustment:
         G_rows = []
         
         if network_type == '1d':
-            # 1D сеть - фиксируем первую точку по высоте
-            # Ограничение: ΣΔh = 0 (сумма поправок высот равна нулю)
+            # 1D сеть (нивелирная) - фиксируем высоту первой точки
+            # Ограничение: Δh_1 = 0 (поправка высоты первой точки равна нулю)
+            # Это определяет высотный datum сети
             constraint_rows = 1
             G_row = np.zeros(u)
-            for point_idx in range(num_points):
-                col_idx = point_idx * params_per_point  # индекс высоты
-                if col_idx < u:
-                    G_row[col_idx] = 1.0
+            # Фиксируем первую точку: её поправка высоты = 0
+            G_row[0] = 1.0
             G_rows.append(G_row)
             
         elif network_type == '2d':
@@ -322,17 +321,25 @@ class FreeNetworkAdjustment:
         
         # Решение расширенной системы
         try:
-            # Используем LU-разложение SciPy вместо sksparse.cholmod
-            from scipy.sparse.linalg import splu
-            factor = splu(extended_matrix.tocsc())
-            solution = factor.solve(extended_rhs)
+            # Для 1D сетей (нивелирных) используем псевдообратную матрицу
+            # т.к. нормальная матрица может быть вырожденной
+            if network_type == '1d':
+                logger.info("Для 1D сети используем псевдообратную матрицу (lstsq)")
+                extended_dense = extended_matrix.toarray()
+                # Используем lstsq для решения переопределенной/вырожденной системы
+                solution, residuals, rank, sv = np.linalg.lstsq(extended_dense, extended_rhs, rcond=None)
+            else:
+                # Для 2D/3D сетей используем LU-разложение
+                from scipy.sparse.linalg import splu
+                factor = splu(extended_matrix.tocsc())
+                solution = factor.solve(extended_rhs)
         except Exception as e:
-            logger.warning(f"Используем плотное решение: {e}", exc_info=True)
+            logger.warning(f"Ошибка при решении системы ({e}), используем псевдообратную матрицу")
             extended_dense = extended_matrix.toarray()
             try:
-                solution = np.linalg.solve(extended_dense, extended_rhs)
-            except np.linalg.LinAlgError as e:
-                logger.error(f"Ошибка при решении системы: {e}")
+                solution, residuals, rank, sv = np.linalg.lstsq(extended_dense, extended_rhs, rcond=None)
+            except Exception as e2:
+                logger.error(f"Ошибка при решении системы: {e2}")
                 raise
         
         # Извлечение решений

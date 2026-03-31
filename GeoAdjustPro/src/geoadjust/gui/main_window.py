@@ -69,20 +69,8 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(self.config.window_title)
         self._load_icon()
         
-        # Установка простого стиля для надежности
-        self.setStyleSheet("""
-            QMainWindow {
-                background-color: #f0f0f0;
-            }
-            QMenuBar {
-                background-color: #e0e0e0;
-                border-bottom: 1px solid #cccccc;
-            }
-            QStatusBar {
-                background-color: #e0e0e0;
-                border-top: 1px solid #cccccc;
-            }
-        """)
+        # Загрузка стилей из файла
+        self._load_styles()
         
         if self.config.window_state == "maximized":
             self.setWindowState(Qt.WindowMaximized)
@@ -91,11 +79,13 @@ class MainWindow(QMainWindow):
         
         # Центральный виджет
         self.central_widget = QWidget()
+        self.central_widget.setObjectName("centralWidget")
         self.setCentralWidget(self.central_widget)
         
-        # Основной макет
+        # Основной макет - убираем все отступы
         self.main_layout = QVBoxLayout(self.central_widget)
         self.main_layout.setContentsMargins(0, 0, 0, 0)
+        self.main_layout.setSpacing(0)
         
         # Создание компонентов интерфейса
         self._create_menu_bar()
@@ -111,6 +101,20 @@ class MainWindow(QMainWindow):
         
         # Загрузка конфигурации рабочей области
         self._load_workspace_config()
+    
+    def _load_styles(self):
+        """Загрузка стилей из файла QSS"""
+        try:
+            styles_path = get_resource_path("gui/resources/styles/styles.qss")
+            if hasattr(styles_path, 'exists') and styles_path.exists():
+                with open(str(styles_path), 'r', encoding='utf-8') as f:
+                    styles = f.read()
+                self.setStyleSheet(styles)
+                logger.info(f"Стили загружены из: {styles_path}")
+            else:
+                logger.warning(f"Файл стилей не найден: {styles_path}")
+        except Exception as e:
+            logger.error(f"Ошибка загрузки стилей: {e}")
     
     def _load_icon(self):
         """Загрузка иконки приложения с обработкой ошибок"""
@@ -249,13 +253,49 @@ class MainWindow(QMainWindow):
         
         view_menu.addSeparator()
         
-        # Панели
+        # Панели - с возможностью восстановления
         panels_menu = view_menu.addMenu("Панели")
-        panels_menu.addAction("Пункты ПВО")
-        panels_menu.addAction("Измерения")
-        panels_menu.addAction("План")
-        panels_menu.addAction("Журнал")
-        panels_menu.addAction("Свойства")
+        
+        # Действия для панелей с проверкой состояния
+        self.points_dock_action = QAction("Пункты ПВО", self)
+        self.points_dock_action.setCheckable(True)
+        self.points_dock_action.setChecked(True)
+        self.points_dock_action.triggered.connect(self._toggle_points_dock)
+        panels_menu.addAction(self.points_dock_action)
+        
+        self.observations_dock_action = QAction("Измерения", self)
+        self.observations_dock_action.setCheckable(True)
+        self.observations_dock_action.setChecked(True)
+        self.observations_dock_action.triggered.connect(self._toggle_observations_dock)
+        panels_menu.addAction(self.observations_dock_action)
+        
+        self.traverses_dock_action = QAction("Ходы и секции", self)
+        self.traverses_dock_action.setCheckable(True)
+        self.traverses_dock_action.setChecked(True)
+        self.traverses_dock_action.triggered.connect(self._toggle_traverses_dock)
+        panels_menu.addAction(self.traverses_dock_action)
+        
+        panels_menu.addSeparator()
+        
+        self.log_dock_action = QAction("Журнал", self)
+        self.log_dock_action.setCheckable(True)
+        self.log_dock_action.setChecked(True)
+        self.log_dock_action.triggered.connect(self._toggle_log_dock)
+        panels_menu.addAction(self.log_dock_action)
+        
+        self.properties_dock_action = QAction("Свойства", self)
+        self.properties_dock_action.setCheckable(True)
+        self.properties_dock_action.setChecked(True)
+        self.properties_dock_action.triggered.connect(self._toggle_properties_dock)
+        panels_menu.addAction(self.properties_dock_action)
+        
+        panels_menu.addSeparator()
+        
+        # Действие для восстановления всех панелей
+        restore_all_action = QAction("Восстановить все панели", self)
+        restore_all_action.setShortcut("Ctrl+Shift+R")
+        restore_all_action.triggered.connect(self._restore_all_panels)
+        panels_menu.addAction(restore_all_action)
         
         # Меню Обработка
         process_menu = menu_bar.addMenu("Обработка")
@@ -469,33 +509,62 @@ class MainWindow(QMainWindow):
         self.points_table = PointsTableView()
         self.points_dock.setWidget(self.points_table)
         self.addDockWidget(Qt.LeftDockWidgetArea, self.points_dock)
+        # Установка минимальной ширины для док-виджета
+        self.points_dock.setMinimumWidth(200)
+        # Подключение сигнала для обновления чекбокса в меню
+        self.points_dock.visibilityChanged.connect(self._on_points_dock_visibility_changed)
         
         # Окно "Измерения"
         self.observations_dock = ObservationsDockWidget("Измерения", self)
         self.observations_table = ObservationsTableView()
         self.observations_dock.setWidget(self.observations_table)
         self.addDockWidget(Qt.LeftDockWidgetArea, self.observations_dock)
+        # Установка минимальной ширины для док-виджета
+        self.observations_dock.setMinimumWidth(200)
+        # Подключение сигнала для обновления чекбокса в меню
+        self.observations_dock.visibilityChanged.connect(self._on_observations_dock_visibility_changed)
         
         # Окно "Ходы и секции"
         self.traverses_dock = TraversesDockWidget("Ходы и секции", self)
         self.traverses_tree = QTreeWidget()
         self.traverses_dock.setWidget(self.traverses_tree)
         self.addDockWidget(Qt.RightDockWidgetArea, self.traverses_dock)
+        # Установка минимальной ширины для док-виджета
+        self.traverses_dock.setMinimumWidth(200)
+        # Подключение сигнала для обновления чекбокса в меню
+        self.traverses_dock.visibilityChanged.connect(self._on_traverses_dock_visibility_changed)
         
         # План создается как виджет для центральной области (не док-виджет)
         self.plan_view = PlanGraphicsView()
+        # Установка минимального размера для плана
+        self.plan_view.setMinimumSize(400, 300)
         
         # Окно "Журнал"
         self.log_dock = QDockWidget("Журнал", self)
         self.log_widget = LogWidget()
         self.log_dock.setWidget(self.log_widget)
         self.addDockWidget(Qt.BottomDockWidgetArea, self.log_dock)
+        # Установка минимальной высоты для док-виджета
+        self.log_dock.setMinimumHeight(100)
+        # Подключение сигнала для обновления чекбокса в меню
+        self.log_dock.visibilityChanged.connect(self._on_log_dock_visibility_changed)
         
         # Окно "Свойства"
         self.properties_dock = QDockWidget("Свойства", self)
         self.properties_widget = PropertiesWidget()
         self.properties_dock.setWidget(self.properties_widget)
         self.addDockWidget(Qt.RightDockWidgetArea, self.properties_dock)
+        # Установка минимальной ширины для док-виджета
+        self.properties_dock.setMinimumWidth(200)
+        # Подключение сигнала для обновления чекбокса в меню
+        self.properties_dock.visibilityChanged.connect(self._on_properties_dock_visibility_changed)
+        
+        # Настройка размеров док-виджетов при запуске
+        self.resizeDocks(
+            [self.points_dock, self.observations_dock, self.traverses_dock, self.properties_dock],
+            [250, 250, 250, 250],
+            Qt.Horizontal
+        )
     
     def _create_main_area(self):
         """Создание центральной области"""
@@ -507,15 +576,18 @@ class MainWindow(QMainWindow):
         central_content = QWidget()
         central_layout = QVBoxLayout(central_content)
         central_layout.setContentsMargins(0, 0, 0, 0)
+        central_layout.setSpacing(0)
         
         self.main_splitter = QSplitter(Qt.Horizontal)
+        self.main_splitter.setHandleWidth(2)  # Тонкий разделитель
+        self.main_splitter.setChildrenCollapsible(False)  # Запрет сворачивания панелей
         central_layout.addWidget(self.main_splitter)
         
         # Левая панель - контейнеры для таблиц данных
         left_container = QWidget()
         left_layout = QVBoxLayout(left_container)
         left_layout.setContentsMargins(0, 0, 0, 0)
-        left_layout.setSpacing(5)
+        left_layout.setSpacing(0)
         
         # Центральная панель - План (основная рабочая область)
         # План добавляется напрямую в splitter для отображения по центру
@@ -524,14 +596,20 @@ class MainWindow(QMainWindow):
         right_container = QWidget()
         right_layout = QVBoxLayout(right_container)
         right_layout.setContentsMargins(0, 0, 0, 0)
-        right_layout.setSpacing(5)
+        right_layout.setSpacing(0)
         
         self.main_splitter.addWidget(left_container)
         self.main_splitter.addWidget(self.plan_view)  # План по центру
         self.main_splitter.addWidget(right_container)
         
         # Установка начальных размеров: левая панель, план (центр), правая панель
-        self.main_splitter.setSizes([200, 800, 200])
+        # Используем пропорции для масштабирования
+        self.main_splitter.setSizes([250, 900, 250])
+        
+        # Установка минимальных размеров для панелей
+        left_container.setMinimumWidth(150)
+        right_container.setMinimumWidth(150)
+        self.plan_view.setMinimumWidth(400)
         
         # Добавляем центральный контент в главный layout
         self.main_layout.addWidget(central_content)
@@ -1537,3 +1615,81 @@ class MainWindow(QMainWindow):
             "О программе",
             "GeoAdjust Pro\nВерсия 1.0\n\nПрограмма для обработки геодезических измерений"
         )
+    
+    # Методы для переключения панелей
+    def _toggle_points_dock(self, checked: bool):
+        """Показать/скрыть панель пунктов ПВО"""
+        if hasattr(self, 'points_dock'):
+            self.points_dock.setVisible(checked)
+    
+    def _toggle_observations_dock(self, checked: bool):
+        """Показать/скрыть панель измерений"""
+        if hasattr(self, 'observations_dock'):
+            self.observations_dock.setVisible(checked)
+    
+    def _toggle_traverses_dock(self, checked: bool):
+        """Показать/скрыть панель ходов и секций"""
+        if hasattr(self, 'traverses_dock'):
+            self.traverses_dock.setVisible(checked)
+    
+    def _toggle_log_dock(self, checked: bool):
+        """Показать/скрыть панель журнала"""
+        if hasattr(self, 'log_dock'):
+            self.log_dock.setVisible(checked)
+    
+    def _toggle_properties_dock(self, checked: bool):
+        """Показать/скрыть панель свойств"""
+        if hasattr(self, 'properties_dock'):
+            self.properties_dock.setVisible(checked)
+    
+    # Обработчики изменения видимости док-виджетов
+    def _on_points_dock_visibility_changed(self, visible: bool):
+        """Обработка изменения видимости панели пунктов"""
+        if hasattr(self, 'points_dock_action'):
+            self.points_dock_action.setChecked(visible)
+    
+    def _on_observations_dock_visibility_changed(self, visible: bool):
+        """Обработка изменения видимости панели измерений"""
+        if hasattr(self, 'observations_dock_action'):
+            self.observations_dock_action.setChecked(visible)
+    
+    def _on_traverses_dock_visibility_changed(self, visible: bool):
+        """Обработка изменения видимости панели ходов"""
+        if hasattr(self, 'traverses_dock_action'):
+            self.traverses_dock_action.setChecked(visible)
+    
+    def _on_log_dock_visibility_changed(self, visible: bool):
+        """Обработка изменения видимости панели журнала"""
+        if hasattr(self, 'log_dock_action'):
+            self.log_dock_action.setChecked(visible)
+    
+    def _on_properties_dock_visibility_changed(self, visible: bool):
+        """Обработка изменения видимости панели свойств"""
+        if hasattr(self, 'properties_dock_action'):
+            self.properties_dock_action.setChecked(visible)
+    
+    def _restore_all_panels(self):
+        """Восстановить все панели"""
+        # Показать все док-виджеты
+        if hasattr(self, 'points_dock'):
+            self.points_dock.setVisible(True)
+            self.points_dock_action.setChecked(True)
+        
+        if hasattr(self, 'observations_dock'):
+            self.observations_dock.setVisible(True)
+            self.observations_dock_action.setChecked(True)
+        
+        if hasattr(self, 'traverses_dock'):
+            self.traverses_dock.setVisible(True)
+            self.traverses_dock_action.setChecked(True)
+        
+        if hasattr(self, 'log_dock'):
+            self.log_dock.setVisible(True)
+            self.log_dock_action.setChecked(True)
+        
+        if hasattr(self, 'properties_dock'):
+            self.properties_dock.setVisible(True)
+            self.properties_dock_action.setChecked(True)
+        
+        self.statusBar().showMessage("Все панели восстановлены", 3000)
+        logger.info("Все панели восстановлены")

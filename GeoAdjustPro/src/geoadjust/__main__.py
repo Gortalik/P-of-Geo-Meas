@@ -12,6 +12,7 @@
 import sys
 import os
 import logging
+import traceback
 from pathlib import Path
 
 # Проверка версии Python
@@ -50,8 +51,47 @@ def check_dependencies():
         sys.exit(1)
 
 
+def global_exception_handler(exc_type, exc_value, exc_traceback):
+    """Глобальный обработчик исключений для защиты от вылетов"""
+    # Игнорируем KeyboardInterrupt
+    if issubclass(exc_type, KeyboardInterrupt):
+        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+        return
+    
+    # Формируем сообщение об ошибке
+    error_msg = "".join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+    
+    # Выводим в консоль
+    print("\n" + "=" * 60)
+    print("КРИТИЧЕСКАЯ ОШИБКА ПРИЛОЖЕНИЯ")
+    print("=" * 60)
+    print(error_msg)
+    print("=" * 60)
+    print("Приложение завершилось с ошибкой.")
+    print("Нажмите Enter для выхода...")
+    print("=" * 60)
+    
+    # Логируем ошибку
+    try:
+        logger = logging.getLogger(__name__)
+        logger.critical(f"Необработанное исключение: {error_msg}")
+    except:
+        pass
+    
+    # Ждем нажатия Enter перед выходом
+    try:
+        input()
+    except:
+        pass
+    
+    sys.exit(1)
+
+
 def main():
     """Основная функция запуска приложения"""
+    # Установка глобального обработчика исключений
+    sys.excepthook = global_exception_handler
+    
     # Вывод информации о запуске в консоль
     print("=" * 60)
     print("P-of-Geo-Meas - Запуск приложения")
@@ -309,7 +349,6 @@ def main():
         
     except Exception as e:
         print(f"\n- Критическая ошибка: {e}")
-        import traceback
         traceback.print_exc()
         print("\nНажмите Enter для выхода...")
         try:

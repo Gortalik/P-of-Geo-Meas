@@ -24,22 +24,22 @@ class RibbonGroup(QFrame):
         super().__init__(parent)
         self.title = title
         self.setFrameStyle(QFrame.StyledPanel)
-        self.setMinimumWidth(140)  # Увеличена минимальная ширина группы
+        self.setMinimumWidth(120)  # Уменьшена минимальная ширина группы
         
-        # Основной макет
+        # Основной макет - компактный
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 8, 8, 8)  # Увеличены отступы
-        layout.setSpacing(5)
+        layout.setContentsMargins(4, 4, 4, 4)  # Уменьшены отступы
+        layout.setSpacing(2)
         
-        # Панель кнопок
+        # Панель кнопок - компактная
         self.buttons_layout = QHBoxLayout()
-        self.buttons_layout.setSpacing(8)  # Увеличен интервал между кнопками
+        self.buttons_layout.setSpacing(4)  # Уменьшен интервал между кнопками
         layout.addLayout(self.buttons_layout)
         
-        # Подпись группы
+        # Подпись группы - компактная
         self.label = QLabel(title)
         self.label.setAlignment(Qt.AlignCenter)
-        self.label.setStyleSheet("font-size: 10px; color: gray;")
+        self.label.setStyleSheet("font-size: 9px; color: gray; margin: 0px; padding: 0px;")
         layout.addWidget(self.label)
         
         self.actions = []
@@ -53,9 +53,10 @@ class RibbonGroup(QFrame):
         button.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         button.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)  # Текст под иконкой
         button.setAutoRaise(False)  # Не делать кнопку "плоской"
-        button.setMinimumWidth(80)  # Увеличена минимальная ширина кнопки
-        button.setMaximumWidth(100)  # Добавлена максимальная ширина
-        button.setMinimumHeight(75)  # Увеличена минимальная высота кнопки
+        button.setMinimumWidth(60)  # Уменьшена минимальная ширина кнопки
+        button.setMaximumWidth(80)  # Уменьшена максимальная ширина
+        button.setMinimumHeight(60)  # Уменьшена минимальная высота кнопки
+        button.setMaximumHeight(70)  # Добавлена максимальная высота
         
         if icon_name:
             try:
@@ -98,6 +99,8 @@ class RibbonTab(QWidget):
         self.title = title
         
         layout = QHBoxLayout(self)
+        layout.setContentsMargins(2, 2, 2, 2)
+        layout.setSpacing(2)
         layout.setContentsMargins(5, 5, 5, 5)
         layout.setSpacing(10)
         

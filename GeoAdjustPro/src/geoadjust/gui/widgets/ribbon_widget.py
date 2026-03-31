@@ -101,8 +101,6 @@ class RibbonTab(QWidget):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(2, 2, 2, 2)
         layout.setSpacing(2)
-        layout.setContentsMargins(5, 5, 5, 5)
-        layout.setSpacing(10)
         
         self.groups = []
     
@@ -137,21 +135,9 @@ class RibbonWidget(QTabWidget):
         # Настройка стиля
         self.setDocumentMode(True)
         self.setMovable(False)
-        self.setStyleSheet("""
-            QTabBar::tab {
-                padding: 8px 20px;
-                font-size: 12px;
-                border: 1px solid #ccc;
-                border-bottom: none;
-                border-radius: 3px 3px 0 0;
-            }
-            QTabBar::tab:selected {
-                background-color: #f0f0f0;
-            }
-            QTabBar::tab:!selected {
-                background-color: #e0e0e0;
-            }
-        """)
+        self.setTabPosition(QTabWidget.North)
+        self.setTabsClosable(False)
+        self.setObjectName("ribbonTabs")
         
         self.tabs = {}
         self.quick_access_toolbar = None

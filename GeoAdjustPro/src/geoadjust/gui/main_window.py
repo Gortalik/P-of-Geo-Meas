@@ -88,12 +88,11 @@ class MainWindow(QMainWindow):
         self.main_layout.setSpacing(0)
         
         # Создание компонентов интерфейса
+        # Menu bar создаётся всегда
         self._create_menu_bar()
         
-        if self.config.interface_type == InterfaceType.RIBBON:
-            self._create_ribbon_interface()
-        else:
-            self._create_classic_toolbars()
+        # Тулбары (ribbon убран, так как дублирует меню)
+        self._create_classic_toolbars()
         
         self._create_status_bar()
         self._create_dock_widgets()
@@ -348,6 +347,7 @@ class MainWindow(QMainWindow):
         from .widgets.ribbon_widget import RibbonWidget
         
         self.ribbon = RibbonWidget(self)
+        self.ribbon.setObjectName("ribbon")
         
         # Вкладка "Главная"
         home_tab = self.ribbon.add_tab("Главная")
@@ -416,13 +416,8 @@ class MainWindow(QMainWindow):
             ("Сертификат соответствия", "compliance_certificate", None, self._compliance_certificate),
         ])
         
-        # Панель быстрого доступа
-        quick_access = self.ribbon.add_quick_access_toolbar()
-        quick_access.add_action("Сохранить", self._save_project)
-        quick_access.add_action("Отменить", None)
-        quick_access.add_action("Повторить", None)
-        
-        # Ribbon widget уже является QTabWidget и добавляется в центральною область
+        # Добавляем ribbon в главный layout
+        self.main_layout.addWidget(self.ribbon)
     
     def _create_classic_toolbars(self):
         """Создание классических тулбаров"""
@@ -499,65 +494,71 @@ class MainWindow(QMainWindow):
     def _create_dock_widgets(self):
         """Создание док-виджетов"""
         from .components.dock_widgets import PointsDockWidget, ObservationsDockWidget, TraversesDockWidget
-        from .components.tables import PointsTableView, ObservationsTableView
+        from .components.tables import PointsTableView
+        from .widgets.observations_table import ObservationsTableWidget
         from .components.plan_view import PlanGraphicsView
         from .components.log_widget import LogWidget
         from .components.properties_widget import PropertiesWidget
         
+        # Настройка углов для док-виджетов (убираем зазоры между панелями)
+        self.setCorner(Qt.TopLeftCorner, Qt.LeftDockWidgetArea)
+        self.setCorner(Qt.BottomLeftCorner, Qt.LeftDockWidgetArea)
+        self.setCorner(Qt.TopRightCorner, Qt.RightDockWidgetArea)
+        self.setCorner(Qt.BottomRightCorner, Qt.RightDockWidgetArea)
+        
         # Окно "Пункты ПВО"
         self.points_dock = PointsDockWidget("Пункты ПВО", self)
+        self.points_dock.setObjectName("pointsDock")
         self.points_table = PointsTableView()
         self.points_dock.setWidget(self.points_table)
         self.addDockWidget(Qt.LeftDockWidgetArea, self.points_dock)
-        # Установка минимальной ширины для док-виджета
         self.points_dock.setMinimumWidth(200)
-        # Подключение сигнала для обновления чекбокса в меню
         self.points_dock.visibilityChanged.connect(self._on_points_dock_visibility_changed)
         
-        # Окно "Измерения"
+        # Окно "Измерения" - с вкладками по типам
         self.observations_dock = ObservationsDockWidget("Измерения", self)
-        self.observations_table = ObservationsTableView()
+        self.observations_dock.setObjectName("observationsDock")
+        self.observations_table = ObservationsTableWidget()
         self.observations_dock.setWidget(self.observations_table)
         self.addDockWidget(Qt.LeftDockWidgetArea, self.observations_dock)
-        # Установка минимальной ширины для док-виджета
-        self.observations_dock.setMinimumWidth(200)
-        # Подключение сигнала для обновления чекбокса в меню
+        self.observations_dock.setMinimumWidth(350)
         self.observations_dock.visibilityChanged.connect(self._on_observations_dock_visibility_changed)
         
         # Окно "Ходы и секции"
         self.traverses_dock = TraversesDockWidget("Ходы и секции", self)
+        self.traverses_dock.setObjectName("traversesDock")
         self.traverses_tree = QTreeWidget()
         self.traverses_dock.setWidget(self.traverses_tree)
         self.addDockWidget(Qt.RightDockWidgetArea, self.traverses_dock)
-        # Установка минимальной ширины для док-виджета
         self.traverses_dock.setMinimumWidth(200)
-        # Подключение сигнала для обновления чекбокса в меню
         self.traverses_dock.visibilityChanged.connect(self._on_traverses_dock_visibility_changed)
         
-        # План создается как виджет для центральной области (не док-виджет)
+        # План - центральный виджет
         self.plan_view = PlanGraphicsView()
-        # Установка минимального размера для плана
-        self.plan_view.setMinimumSize(400, 300)
+        self.plan_view.setObjectName("planView")
         
         # Окно "Журнал"
         self.log_dock = QDockWidget("Журнал", self)
+        self.log_dock.setObjectName("logDock")
         self.log_widget = LogWidget()
         self.log_dock.setWidget(self.log_widget)
         self.addDockWidget(Qt.BottomDockWidgetArea, self.log_dock)
-        # Установка минимальной высоты для док-виджета
         self.log_dock.setMinimumHeight(100)
-        # Подключение сигнала для обновления чекбокса в меню
         self.log_dock.visibilityChanged.connect(self._on_log_dock_visibility_changed)
         
-        # Окно "Свойства"
+        # Окно "Свойства/История" - с вкладками
         self.properties_dock = QDockWidget("Свойства", self)
-        self.properties_widget = PropertiesWidget()
-        self.properties_dock.setWidget(self.properties_widget)
+        self.properties_dock.setObjectName("propertiesDock")
+        from .components.history_widget import PropertiesHistoryTabWidget
+        self.properties_history = PropertiesHistoryTabWidget(self)
+        self.properties_dock.setWidget(self.properties_history)
         self.addDockWidget(Qt.RightDockWidgetArea, self.properties_dock)
-        # Установка минимальной ширины для док-виджета
         self.properties_dock.setMinimumWidth(200)
-        # Подключение сигнала для обновления чекбокса в меню
         self.properties_dock.visibilityChanged.connect(self._on_properties_dock_visibility_changed)
+        
+        # Ссылки на вложенные виджеты для совместимости
+        self.properties_widget = self.properties_history.properties_widget
+        self.history_widget = self.properties_history.history_widget
         
         # Настройка размеров док-виджетов при запуске
         self.resizeDocks(
@@ -565,54 +566,222 @@ class MainWindow(QMainWindow):
             [250, 250, 250, 250],
             Qt.Horizontal
         )
+        
+        # Подключение сигналов выбора к виджету свойств
+        self._connect_properties_signals()
+        
+        # Подключение сигнала изменения свойств
+        self.properties_widget.properties_changed.connect(self._on_properties_changed)
+        
+        # Подключение сигналов истории
+        self.history_widget.undo_requested.connect(self._on_history_undo)
+        self.history_widget.redo_requested.connect(self._on_history_redo)
+        self.history_widget.jump_to_entry.connect(self._on_jump_to_entry)
+    
+    def _connect_properties_signals(self):
+        """Подключение сигналов выбора к виджету свойств"""
+        # Сигналы от таблицы пунктов
+        if hasattr(self, 'points_table'):
+            # PointsTableView имеет сигнал point_double_clicked
+            self.points_table.point_double_clicked.connect(self._on_point_selected)
+            # Также подключаем сигнал выбора строки
+            self.points_table.selectionModel().selectionChanged.connect(self._on_points_selection_changed)
+        
+        # Сигналы от таблицы измерений
+        if hasattr(self, 'observations_table'):
+            # ObservationsTableWidget имеет внутреннюю таблицу
+            obs_table = self.observations_table.table_view if hasattr(self.observations_table, 'table_view') else self.observations_table
+            if hasattr(obs_table, 'selectionModel'):
+                obs_table.selectionModel().selectionChanged.connect(self._on_observations_selection_changed)
+    
+    def _on_point_selected(self, point_id: str):
+        """Обработка выбора пункта"""
+        self._show_point_properties(point_id)
+    
+    def _on_points_selection_changed(self, selected, deselected):
+        """Обработка изменения выбора в таблице пунктов"""
+        indexes = self.points_table.selectionModel().selectedRows()
+        if indexes:
+            # Берём первый выбранный пункт
+            row = indexes[0].row()
+            model = self.points_table.model()
+            if model:
+                point_id = model.index(row, 0).data()
+                if point_id:
+                    self._show_point_properties(point_id)
+        else:
+            self.properties_widget.clear()
+    
+    def _on_observations_selection_changed(self, selected, deselected):
+        """Обработка изменения выбора в таблице измерений"""
+        if hasattr(self, 'observations_table'):
+            obs_table = self.observations_table.table_view if hasattr(self.observations_table, 'table_view') else self.observations_table
+            if hasattr(obs_table, 'selectionModel'):
+                indexes = obs_table.selectionModel().selectedRows()
+                if indexes:
+                    row = indexes[0].row()
+                    model = obs_table.model()
+                    if model:
+                        obs_id = model.index(row, 0).data()
+                        if obs_id:
+                            self._show_observation_properties(obs_id)
+                else:
+                    self.properties_widget.clear()
+    
+    def _show_point_properties(self, point_id: str):
+        """Отображение свойств пункта"""
+        if not self.current_project:
+            return
+        
+        # Поиск пункта в проекте
+        points = self.current_project.get_points()
+        for point in points:
+            if isinstance(point, dict) and point.get('id') == point_id or point.get('name') == point_id:
+                self.properties_widget.set_point_properties(point_id, point)
+                return
+        
+        # Если не нашли в проекте, пробуем получить из модели
+        model = self.points_table.model()
+        if model:
+            for row in range(model.rowCount()):
+                item_id = model.index(row, 0).data()
+                if item_id == point_id:
+                    properties = {
+                        'id': point_id,
+                        'name': model.index(row, 1).data() or point_id,
+                        'coord_type': model.index(row, 2).data() or 'FREE',
+                        'x': float(model.index(row, 3).data() or 0),
+                        'y': float(model.index(row, 4).data() or 0),
+                        'h': float(model.index(row, 5).data() or 0),
+                        'normative_class': '',
+                        'sigma_x': 0.0,
+                        'sigma_y': 0.0
+                    }
+                    self.properties_widget.set_point_properties(point_id, properties)
+                    return
+    
+    def _show_observation_properties(self, obs_id: str):
+        """Отображение свойств измерения"""
+        if not self.current_project:
+            return
+        
+        # Поиск измерения в проекте
+        observations = self.current_project.get_observations()
+        for obs in observations:
+            if isinstance(obs, dict) and obs.get('id') == obs_id:
+                self.properties_widget.set_observation_properties(obs_id, obs)
+                return
+        
+        # Если не нашли в проекте, пробуем получить из модели
+        obs_table = self.observations_table.table_view if hasattr(self.observations_table, 'table_view') else self.observations_table
+        model = obs_table.model()
+        if model:
+            for row in range(model.rowCount()):
+                item_id = model.index(row, 0).data()
+                if item_id == obs_id:
+                    properties = {
+                        'id': obs_id,
+                        'obs_type': model.index(row, 3).data() or 'direction',
+                        'from_point': model.index(row, 1).data() or '',
+                        'to_point': model.index(row, 2).data() or '',
+                        'value': float(model.index(row, 4).data() or 0),
+                        'instrument_name': model.index(row, 6).data() or '',
+                        'sigma_apriori': float(model.index(row, 5).data() or 0),
+                        'is_active': True,
+                        'weight_multiplier': 1.0
+                    }
+                    self.properties_widget.set_observation_properties(obs_id, properties)
+                    return
+    
+    def _on_properties_changed(self, changes: dict):
+        """Обработка изменения свойств объекта"""
+        if not self.current_project or not self.properties_widget.current_object:
+            return
+        
+        obj = self.properties_widget.current_object
+        if obj['type'] == 'point':
+            self._update_point_in_project(obj['id'], changes)
+        elif obj['type'] == 'observation':
+            self._update_observation_in_project(obj['id'], changes)
+    
+    def _update_point_in_project(self, point_id: str, changes: dict):
+        """Обновление пункта в проекте"""
+        try:
+            points = self.current_project.get_points()
+            for i, point in enumerate(points):
+                if isinstance(point, dict) and (point.get('id') == point_id or point.get('name') == point_id):
+                    # Сохраняем старые данные для отмены
+                    old_data = dict(point)
+                    point.update(changes)
+                    if hasattr(self.current_project, 'update_point'):
+                        self.current_project.update_point(point)
+                    elif hasattr(self.current_project, 'save'):
+                        self.current_project.save()
+                    self._refresh_data_views()
+                    self._add_history_entry('edit_point', f"Редактирование пункта '{point_id}'",
+                                           {'old': old_data, 'new': dict(point)})
+                    self.statusBar().showMessage(f"Пункт '{point_id}' обновлён", 2000)
+                    logger.info(f"Пункт '{point_id}' обновлён")
+                    return
+        except Exception as e:
+            logger.error(f"Ошибка обновления пункта: {e}")
+            QMessageBox.warning(self, "Ошибка", f"Не удалось обновить пункт:\n{str(e)}")
+    
+    def _update_observation_in_project(self, obs_id: str, changes: dict):
+        """Обновление измерения в проекте"""
+        try:
+            observations = self.current_project.get_observations()
+            for i, obs in enumerate(observations):
+                if isinstance(obs, dict) and obs.get('id') == obs_id:
+                    obs.update(changes)
+                    if hasattr(self.current_project, 'update_observation'):
+                        self.current_project.update_observation(obs)
+                    elif hasattr(self.current_project, 'save'):
+                        self.current_project.save()
+                    self._refresh_data_views()
+                    self.statusBar().showMessage("Измерение обновлено", 2000)
+                    logger.info("Измерение обновлено")
+                    return
+        except Exception as e:
+            logger.error(f"Ошибка обновления измерения: {e}")
+            QMessageBox.warning(self, "Ошибка", f"Не удалось обновить измерение:\n{str(e)}")
+    
+    def _add_history_entry(self, action_type: str, description: str, data: Dict[str, Any] = None):
+        """Добавление записи в историю"""
+        if hasattr(self, 'history_widget'):
+            from .components.history_widget import HistoryEntry
+            entry = HistoryEntry(action_type, description, data)
+            self.history_widget.add_entry(entry)
+    
+    def _on_history_undo(self, entry):
+        """Обработка запроса на отмену"""
+        logger.info(f"Отмена действия: {entry.description}")
+        # TODO: Реализовать отмену действия на основе entry.undo_data
+        self.statusBar().showMessage(f"Отменено: {entry.description}", 2000)
+    
+    def _on_history_redo(self, entry):
+        """Обработка запроса на повтор"""
+        logger.info(f"Повтор действия: {entry.description}")
+        # TODO: Реализовать повтор действия на основе entry.data
+        self.statusBar().showMessage(f"Повторено: {entry.description}", 2000)
+    
+    def _on_jump_to_entry(self, index):
+        """Переход к записи в истории"""
+        entry = self.history_widget.history_manager.get_entry_at(index)
+        if entry:
+            logger.info(f"Переход к записи: {entry.description}")
+            self.statusBar().showMessage(f"Запись: {entry.description}", 2000)
     
     def _create_main_area(self):
         """Создание центральной области"""
-        # Центральная область для главного окна уже создана через setCentralWidget
         # Док-виджеты уже добавлены через addDockWidget в _create_dock_widgets
-        # Здесь только настраиваем splitter для центральных панелей
+        # QMainWindow автоматически управляет ими, plan_view занимает центральную область
         
-        # Создаем центральный виджет для основной рабочей области
-        central_content = QWidget()
-        central_layout = QVBoxLayout(central_content)
-        central_layout.setContentsMargins(0, 0, 0, 0)
-        central_layout.setSpacing(0)
+        # Установка минимального размера для плана
+        self.plan_view.setMinimumSize(400, 300)
         
-        self.main_splitter = QSplitter(Qt.Horizontal)
-        self.main_splitter.setHandleWidth(2)  # Тонкий разделитель
-        self.main_splitter.setChildrenCollapsible(False)  # Запрет сворачивания панелей
-        central_layout.addWidget(self.main_splitter)
-        
-        # Левая панель - контейнеры для таблиц данных
-        left_container = QWidget()
-        left_layout = QVBoxLayout(left_container)
-        left_layout.setContentsMargins(0, 0, 0, 0)
-        left_layout.setSpacing(0)
-        
-        # Центральная панель - План (основная рабочая область)
-        # План добавляется напрямую в splitter для отображения по центру
-        
-        # Правая панель - контейнеры для графики и свойств
-        right_container = QWidget()
-        right_layout = QVBoxLayout(right_container)
-        right_layout.setContentsMargins(0, 0, 0, 0)
-        right_layout.setSpacing(0)
-        
-        self.main_splitter.addWidget(left_container)
-        self.main_splitter.addWidget(self.plan_view)  # План по центру
-        self.main_splitter.addWidget(right_container)
-        
-        # Установка начальных размеров: левая панель, план (центр), правая панель
-        # Используем пропорции для масштабирования
-        self.main_splitter.setSizes([250, 900, 250])
-        
-        # Установка минимальных размеров для панелей
-        left_container.setMinimumWidth(150)
-        right_container.setMinimumWidth(150)
-        self.plan_view.setMinimumWidth(400)
-        
-        # Добавляем центральный контент в главный layout
-        self.main_layout.addWidget(central_content)
+        # Добавляем план в главный layout как центральный виджет
+        self.main_layout.addWidget(self.plan_view)
     
     def _load_workspace_config(self):
         """Загрузка конфигурации рабочей области"""
@@ -821,10 +990,17 @@ class MainWindow(QMainWindow):
             
             # Установка моделей данных
             logger.info("Установка моделей данных...")
-            self.processing_integration.set_models(
-                self.points_table.model(),
-                self.observations_table.model()
-            )
+            # Передаём данные проекта напрямую
+            if hasattr(self, 'current_project') and self.current_project:
+                points = getattr(self.current_project, 'points', {})
+                observations = getattr(self.current_project, 'observations', [])
+                self.processing_integration.set_project_data(points, observations)
+            else:
+                # Передаём таблицы как fallback
+                self.processing_integration.set_models(
+                    self.points_table,
+                    self.observations_table
+                )
             
             # Запуск уравнивания в отдельном потоке
             logger.info("Запуск потока обработки...")
@@ -1183,6 +1359,135 @@ class MainWindow(QMainWindow):
         # Обновление плана
         if hasattr(self, 'plan_view'):
             self.plan_view.draw_network(self.current_project)
+        
+        # Обновление дерева ходов и секций
+        if hasattr(self, 'traverses_tree'):
+            self._update_traverses_tree()
+    
+    def _update_traverses_tree(self):
+        """Обновление дерева ходов и секций из данных предобработки"""
+        if not hasattr(self, 'traverses_tree') or not self.current_project:
+            return
+        
+        tree = self.traverses_tree
+        tree.clear()
+        
+        # Получаем данные предобработки из проекта
+        preprocessing_result = getattr(self.current_project, 'preprocessing_result', None)
+        if not preprocessing_result:
+            # Если нет результатов предобработки, пробуем выполнить её
+            try:
+                from geoadjust.core.preprocessing.module import PreprocessingModule
+                
+                observations = self.current_project.get_observations()
+                if not observations:
+                    tree.addTopLevelItem(QTreeWidgetItem(["Нет данных для отображения"]))
+                    return
+                
+                preprocessor = PreprocessingModule()
+                results = preprocessor.run_preprocessing(observations)
+                
+                # Сохраняем результаты в проект
+                self.current_project.preprocessing_result = results
+                
+                preprocessing_result = results
+            except Exception as e:
+                logger.warning(f"Не удалось выполнить предобработку: {e}")
+                tree.addTopLevelItem(QTreeWidgetItem(["Ошибка предобработки"]))
+                return
+        
+        if not preprocessing_result:
+            tree.addTopLevelItem(QTreeWidgetItem(["Нет данных для отображения"]))
+            return
+        
+        # Корневой элемент "Тахеометрические ходы"
+        ts_item = QTreeWidgetItem(["Тахеометрические ходы"])
+        ts_icon = QIcon.fromTheme("applications-science")
+        if not ts_icon.isNull():
+            ts_item.setIcon(0, ts_icon)
+        
+        traverses = preprocessing_result.get('traverses', [])
+        if traverses:
+            for i, traverse in enumerate(traverses):
+                stations = traverse.get('stations', [])
+                num_angles = traverse.get('num_angles', 0)
+                num_distances = traverse.get('num_distances', 0)
+                total_length = traverse.get('total_length', 0)
+                
+                traverse_item = QTreeWidgetItem([
+                    f"Ход {i+1}: {len(stations)} ст., "
+                    f"{num_angles} углов, {num_distances} линий, "
+                    f"L={total_length:.1f}м"
+                ])
+                
+                # Добавляем станции
+                for station in stations:
+                    station_item = QTreeWidgetItem([f"Станция: {station}"])
+                    traverse_item.addChild(station_item)
+                
+                ts_item.addChild(traverse_item)
+        else:
+            ts_item.addChild(QTreeWidgetItem(["Нет тахеометрических ходов"]))
+        
+        tree.addTopLevelItem(ts_item)
+        ts_item.setExpanded(True)
+        
+        # Корневой элемент "Нивелирные секции"
+        level_item = QTreeWidgetItem(["Нивелирные секции"])
+        level_icon = QIcon.fromTheme("applications-science")
+        if not level_icon.isNull():
+            level_item.setIcon(0, level_icon)
+        
+        sections = preprocessing_result.get('sections', [])
+        if sections:
+            for i, section in enumerate(sections):
+                stations = section.get('stations', [])
+                num_height_diffs = section.get('num_height_diffs', 0)
+                total_elev_diff = section.get('total_elevation_diff', 0)
+                
+                section_item = QTreeWidgetItem([
+                    f"Секция {i+1}: {len(stations)} ст., "
+                    f"{num_height_diffs} превышений, "
+                    f"Σh={total_elev_diff:.3f}м"
+                ])
+                
+                # Добавляем станции
+                for station in stations:
+                    station_item = QTreeWidgetItem([f"Станция: {station}"])
+                    section_item.addChild(station_item)
+                
+                level_item.addChild(section_item)
+        else:
+            level_item.addChild(QTreeWidgetItem(["Нет нивелирных секций"]))
+        
+        tree.addTopLevelItem(level_item)
+        level_item.setExpanded(True)
+        
+        # Корневой элемент "GNSS базовые линии"
+        gnss_item = QTreeWidgetItem(["GNSS базовые линии"])
+        gnss_icon = QIcon.fromTheme("applications-science")
+        if not gnss_icon.isNull():
+            gnss_item.setIcon(0, gnss_icon)
+        
+        baselines = preprocessing_result.get('gnss_baselines', [])
+        if baselines:
+            for i, bl in enumerate(baselines):
+                from_st = bl.get('from_station', '?')
+                to_st = bl.get('to_station', '?')
+                dx = bl.get('dx', 0)
+                dy = bl.get('dy', 0)
+                dz = bl.get('dz', 0)
+                
+                bl_item = QTreeWidgetItem([
+                    f"{from_st} → {to_st}: "
+                    f"dX={dx:.3f}, dY={dy:.3f}, dZ={dz:.3f}"
+                ])
+                gnss_item.addChild(bl_item)
+        else:
+            gnss_item.addChild(QTreeWidgetItem(["Нет GNSS базовых линий"]))
+        
+        tree.addTopLevelItem(gnss_item)
+        gnss_item.setExpanded(True)
     
     def _check_tolerances(self):
         """Контроль допусков"""

@@ -302,3 +302,57 @@ class PlanGraphicsView(QGraphicsView):
             self.fit_to_contents()
         else:
             super().keyPressEvent(event)
+    
+    def draw_network(self, project):
+        """Отрисовка геодезической сети из проекта
+        
+        Параметры:
+        -----------
+        project : Project
+            Объект проекта с пунктами и измерениями
+        """
+        # Очистка сцены
+        self.clear_all()
+        
+        if project is None:
+            return
+        
+        # Получаем пункты и измерения из проекта
+        points = getattr(project, 'points', {})
+        observations = getattr(project, 'observations', [])
+        
+        # Если points - это словарь NetworkPoint
+        if isinstance(points, dict):
+            for point_id, point in points.items():
+                x = getattr(point, 'x', 0) or 0
+                y = getattr(point, 'y', 0) or 0
+                point_type = getattr(point, 'coord_type', 'FREE')
+                self.add_point(point_id, x, y, point_type=point_type)
+        
+        # Если points - это список словарей
+        elif isinstance(points, list):
+            for point in points:
+                if isinstance(point, dict):
+                    point_id = point.get('name', point.get('point_id', ''))
+                    x = point.get('x', 0) or 0
+                    y = point.get('y', 0) or 0
+                    point_type = point.get('type', point.get('coord_type', 'FREE'))
+                    self.add_point(point_id, x, y, point_type=point_type)
+        
+        # Добавляем измерения
+        if isinstance(observations, list):
+            for obs in observations:
+                if isinstance(obs, dict):
+                    from_point = obs.get('from_point', '')
+                    to_point = obs.get('to_point', '')
+                    obs_type = obs.get('type', obs.get('obs_type', 'direction'))
+                else:
+                    from_point = getattr(obs, 'from_point', '')
+                    to_point = getattr(obs, 'to_point', '')
+                    obs_type = getattr(obs, 'obs_type', 'direction')
+                
+                if from_point and to_point:
+                    self.add_observation(from_point, to_point, obs_type)
+        
+        # Подгонка масштаба
+        self.fit_to_contents()

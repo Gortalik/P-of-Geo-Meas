@@ -1,127 +1,169 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-Модуль утилит для GeoAdjust Pro
-
-Предоставляет общие функции для работы с ресурсами, логирования и другие вспомогательные функции.
+Утилиты для GeoAdjust-Pro
 """
 
-from datetime import datetime
+import os
 import sys
-from pathlib import Path
-from typing import Optional
 import logging
+from pathlib import Path
+import math
 
 
-def get_resource_path(resource_name: str) -> Path:
-    """
-    Получение пути к ресурсу независимо от режима установки.
-    
-    Работает как в режиме разработки, так и после установки пакета,
-    а также в собранном приложении PyInstaller.
+def setup_logging(level=logging.INFO, log_file=None):
+    """Настройка логирования
     
     Args:
-        resource_name: Относительный путь к ресурсу внутри пакета
-        
-    Returns:
-        Path: Путь к ресурсу
-        
-    Examples:
-        >>> get_resource_path("gui/resources/icons/app_icon.ico")
-        Path('/path/to/geoadjust/gui/resources/icons/app_icon.ico')
-    """
-    # Проверка режима PyInstaller
-    import sys
-    if getattr(sys, 'frozen', False):
-        # Режим исполняемого файла PyInstaller
-        application_path = Path(sys.executable).parent
-        return application_path / resource_name
-    
-    try:
-        # Для Python 3.9+ с использованием importlib.resources
-        from importlib.resources import files
-        return files('geoadjust').joinpath(resource_name)
-    except (ImportError, Exception):
-        # Попытка использовать backports
-        try:
-            from importlib_resources import files
-            return files('geoadjust').joinpath(resource_name)
-        except Exception:
-            # Фоллбэк для режима разработки
-            # Определяем базовый путь относительно этого файла
-            current_file = Path(__file__).resolve()
-            package_root = current_file.parent.parent  # geoadjust directory
-            return package_root / resource_name
-
-
-def setup_logging(
-    log_file: Optional[str] = None,
-    level: int = logging.INFO,
-    console_output: bool = True
-) -> logging.Logger:
-    """
-    Настройка логирования приложения.
-    
-    Args:
-        log_file: Имя файла для логов или None для авто-создания в temp
         level: Уровень логирования
-        console_output: Выводить ли логи в консоль
-        
-    Returns:
-        Logger: Настроенный логгер
+        log_file: Путь к файлу лога (опционально)
     """
-    import tempfile
-    import os
+    log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     
-    logger = logging.getLogger('geoadjust')
-    logger.setLevel(logging.DEBUG)  # Всегда устанавливаем DEBUG для полной записи
+    handlers = [logging.StreamHandler(sys.stdout)]
     
-    # Очищаем существующие обработчики
-    logger.handlers.clear()
+    if log_file:
+        handlers.append(logging.FileHandler(log_file, encoding='utf-8'))
     
-    # Создаем более подробный форматтер с информацией о файле и строке
-    detailed_formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(filename)s:%(lineno)d - %(funcName)s() - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
+    logging.basicConfig(
+        level=level,
+        format=log_format,
+        handlers=handlers
     )
     
-    # Определяем путь к файлу логов
-    if log_file is None:
-        # Автоматическое создание файла во временной директории
-        log_dir = Path(tempfile.gettempdir()) / 'geoadjust_logs'
-        log_dir.mkdir(exist_ok=True)
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        log_file = str(log_dir / f'geoadjust_{timestamp}.log')
-        print(f"+ Логи сохраняются в: {log_file}")
-    elif log_file == '':
-        log_file = None
-    
-    # Обработчик для файла - всегда создаем для отладки
-    if log_file:
-        try:
-            file_handler = logging.FileHandler(log_file, encoding='utf-8', mode='a')
-            file_handler.setLevel(logging.DEBUG)
-            file_handler.setFormatter(detailed_formatter)
-            logger.addHandler(file_handler)
-            print(f"+ Файловое логирование включено: {log_file}")
-        except Exception as e:
-            print(f"- Warning: Could not create log file: {e}")
-    
-    # Обработчик для консоли
-    if console_output:
-        console_handler = logging.StreamHandler()
-        console_handler.setLevel(level)
-        console_handler.setFormatter(detailed_formatter)
-        logger.addHandler(console_handler)
-    
-    # Добавляем обработчик исключений для перехвата всех ошибок
-    def exception_handler(exc_type, exc_value, exc_traceback):
-        if issubclass(exc_type, KeyboardInterrupt):
-            sys.__excepthook__(exc_type, exc_value, exc_traceback)
-            return
-        logger.critical("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
-    
-    sys.excepthook = exception_handler
-    
-    return logger
+    return logging.getLogger('geoadjust')
 
 
-__all__ = ['get_resource_path', 'setup_logging']
+def get_resource_path(relative_path: str) -> str:
+    """Получить путь к ресурсу (работает и в dev, и в PyInstaller)"""
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
+
+
+def dms_to_decimal(degrees: float, minutes: float = 0, seconds: float = 0) -> float:
+    """Конвертация DMS в десятичные градусы"""
+    sign = 1 if degrees >= 0 else -1
+    return sign * (abs(degrees) + minutes / 60.0 + seconds / 3600.0)
+
+
+def decimal_to_dms(decimal_degrees: float) -> tuple:
+    """Конвертация десятичных градусов в DMS
+    
+    Returns:
+        tuple: (degrees, minutes, seconds, sign)
+    """
+    sign = 1 if decimal_degrees >= 0 else -1
+    abs_deg = abs(decimal_degrees)
+    degrees = int(abs_deg)
+    minutes_float = (abs_deg - degrees) * 60
+    minutes = int(minutes_float)
+    seconds = (minutes_float - minutes) * 60
+    return degrees, minutes, seconds, sign
+
+
+def format_dms(decimal_degrees: float, include_sign: bool = True) -> str:
+    """Форматирование угла в DMS строку
+    
+    Args:
+        decimal_degrees: Угол в десятичных градусах
+        include_sign: Включать ли знак (N/S/E/W или +/-)
+    
+    Returns:
+        str: Форматированная строка "DD°MM'SS.SS\""
+    """
+    degrees, minutes, seconds, sign = decimal_to_dms(decimal_degrees)
+    
+    if include_sign:
+        sign_str = "-" if sign < 0 else ""
+        return f"{sign_str}{degrees}°{minutes:02d}'{seconds:05.2f}\""
+    else:
+        return f"{degrees}°{minutes:02d}'{seconds:05.2f}\""
+
+
+def format_dms_compact(decimal_degrees: float) -> str:
+    """Компактное форматирование DMS"""
+    degrees, minutes, seconds, sign = decimal_to_dms(decimal_degrees)
+    return f"{degrees:3d}°{minutes:02d}'{seconds:05.2f}\""
+
+
+def parse_dms(dms_string: str) -> float:
+    """Парсинг DMS строки в десятичные градусы
+    
+    Поддерживаемые форматы:
+    - "DD°MM'SS.SS\""
+    - "DD MM SS.SS"
+    - "DD.MMSS" (геодезический формат)
+    """
+    dms_string = dms_string.strip()
+    
+    # Геодезический формат DD.MMSS
+    if '.' in dms_string and '°' not in dms_string:
+        parts = dms_string.split('.')
+        if len(parts) == 2:
+            degrees = int(parts[0])
+            mmss = parts[1].zfill(4)
+            minutes = int(mmss[:2])
+            seconds = float(mmss[2:]) if len(mmss) > 2 else 0
+            return dms_to_decimal(degrees, minutes, seconds)
+    
+    # Формат DD°MM'SS.SS"
+    if '°' in dms_string:
+        dms_string = dms_string.replace('°', ' ').replace("'", ' ').replace('"', '').strip()
+    
+    parts = dms_string.split()
+    if len(parts) >= 3:
+        degrees = int(parts[0])
+        minutes = int(parts[1])
+        seconds = float(parts[2])
+        return dms_to_decimal(degrees, minutes, seconds)
+    
+    # Просто число
+    try:
+        return float(dms_string)
+    except ValueError:
+        return 0.0
+
+
+def gons_to_degrees(gons: float) -> float:
+    """Конвертация гон в градусы"""
+    return gons * 0.9
+
+
+def degrees_to_gons(degrees: float) -> float:
+    """Конвертация градусов в гоны"""
+    return degrees / 0.9
+
+
+def radians_to_degrees(radians: float) -> float:
+    """Конвертация радиан в градусы"""
+    return radians * 180.0 / math.pi
+
+
+def degrees_to_radians(degrees: float) -> float:
+    """Конвертация градусов в радианы"""
+    return degrees * math.pi / 180.0
+
+
+def format_coordinate(value: float, precision: int = 4) -> str:
+    """Форматирование координаты"""
+    return f"{value:.{precision}f}"
+
+
+def format_height(value: float, precision: int = 4) -> str:
+    """Форматирование высоты"""
+    return f"{value:.{precision}f}"
+
+
+def format_distance(value: float, precision: int = 3) -> str:
+    """Форматирование расстояния"""
+    return f"{value:.{precision}f}"
+
+
+def format_sigma(value: float, precision: int = 2) -> str:
+    """Форматирование СКО"""
+    if value < 0.001:
+        return f"{value * 1000:.{precision}f} мм"
+    return f"{value:.{precision}f} м"

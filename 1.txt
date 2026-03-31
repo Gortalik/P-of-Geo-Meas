@@ -1,0 +1,57 @@
+[21:49:12] INFO: geoadjust - Новый проект создан и отображён в главном окне
+[21:49:12] INFO: geoadjust - Запуск главного цикла приложения Qt
+[21:49:16] INFO: geoadjust.gui.main_window - ============================================================
+[21:49:16] INFO: geoadjust.gui.main_window - ЗАПУСК ИМПОРТА ДАННЫХ ИЗ ФАЙЛА
+[21:49:16] INFO: geoadjust.gui.main_window - ============================================================
+[21:49:37] INFO: geoadjust.io.formats.sdr - Парсинг файла SDR
+[21:49:37] INFO: geoadjust.io.formats.sdr - Кодировка: ascii
+[21:49:37] INFO: geoadjust.io.formats.sdr - Строк в файле: 1688
+[21:49:37] INFO: geoadjust.io.formats.sdr - Заголовок: SDR33 V04-03
+[21:49:37] INFO: geoadjust.io.formats.sdr - Имя работы: badgro1609
+[21:49:37] INFO: geoadjust.io.formats.sdr - Прибор: : 000000VX & S Series 0000003
+[21:49:37] INFO: geoadjust.io.formats.sdr - Прибор: : 000000VX & S Series 0000003
+[21:49:37] INFO: geoadjust.io.formats.sdr - Прибор: : 000000VX & S Series 0000003
+[21:49:37] INFO: geoadjust.io.formats.sdr - Прибор: : 000000VX & S Series 0000003
+[21:49:37] INFO: geoadjust.io.formats.sdr - Прибор: : 000000VX & S Series 0000003
+[21:49:37] INFO: geoadjust.io.formats.sdr - Прибор: : 000000VX & S Series 0000003
+[21:49:37] INFO: geoadjust.io.formats.sdr - Прибор: : 000000VX & S Series 0000003
+[21:49:37] INFO: geoadjust.io.formats.sdr - Прибор: : 000000VX & S Series 0000003
+[21:49:37] INFO: geoadjust.io.formats.sdr - Прибор: : 000000VX & S Series 0000003
+[21:49:37] INFO: geoadjust.io.formats.sdr - Прибор: : 000000VX & S Series 0000003
+[21:49:37] INFO: geoadjust.io.formats.sdr - Прибор: : 000000VX & S Series 0000003
+[21:49:37] INFO: geoadjust.io.formats.sdr - Прибор: : 000000VX & S Series 0000003
+[21:49:37] INFO: geoadjust.io.formats.sdr - Прибор: : 000000VX & S Series 0000003
+[21:49:37] INFO: geoadjust.io.formats.sdr - Прибор: : 000000VX & S Series 0000003
+[21:49:37] INFO: geoadjust.io.formats.sdr - Прибор: : 000000VX & S Series 0000003
+[21:49:37] INFO: geoadjust.io.formats.sdr - Прибор: : 000000VX & S Series 0000003
+[21:49:37] INFO: geoadjust.io.formats.sdr - Прибор: : 000000VX & S Series 0000003
+[21:49:37] INFO: geoadjust.io.formats.sdr - Прибор: : 000000VX & S Series 0000003
+[21:49:37] INFO: geoadjust.io.formats.sdr - Прибор: : 000000VX & S Series 0000003
+[21:49:37] INFO: geoadjust.io.formats.sdr - Прибор: : 000000VX & S Series 0000003
+[21:49:37] INFO: geoadjust.io.formats.sdr - Прибор: : 000000VX & S Series 0000003
+[21:49:37] INFO: geoadjust.io.formats.sdr - Прибор: : 000000VX & S Series 0000003
+[21:49:37] INFO: geoadjust.io.formats.sdr - Прибор: : 000000VX & S Series 0000003
+[21:49:37] INFO: geoadjust.io.formats.sdr - Прибор: : 000000VX & S Series 0000003
+[21:49:37] INFO: geoadjust.io.formats.sdr - Прибор: : 000000VX & S Series 0000003
+[21:49:37] INFO: geoadjust.io.formats.sdr - Прибор: : 000000VX & S Series 0000003
+[21:49:37] INFO: geoadjust.io.formats.sdr - Прибор: : 000000VX & S Series 0000003
+[21:49:37] INFO: geoadjust.io.formats.sdr - Прибор: : 000000VX & S Series 0000003
+[21:49:37] INFO: geoadjust.io.formats.sdr - Прибор: : 000000VX & S Series 0000003
+[21:49:37] INFO: geoadjust.io.formats.sdr - Прибор: : 000000VX & S Series 0000003
+[21:49:37] INFO: geoadjust.io.formats.sdr - Прибор: : 000000VX & S Series 0000003
+[21:49:37] INFO: geoadjust.io.formats.sdr - Прибор: : 000000VX & S Series 0000003
+[21:49:37] INFO: geoadjust.io.formats.sdr - Прибор: : 000000VX & S Series 0000003
+[21:49:37] INFO: geoadjust.io.formats.sdr - Парсинг завершён: 2526 измерений, 61 пунктов
+[21:49:40] INFO: geoadjust.gui.main_window - Импортировано: 61 пунктов, 2526 измерений
+[21:50:04] INFO: geoadjust.gui.main_window - Запуск предобработки
+[21:50:16] INFO: geoadjust.gui.main_window - ============================================================
+[21:50:16] INFO: geoadjust.gui.main_window - ЗАПУСК КЛАССИЧЕСКОГО МНК УРАВНИВАНИЯ
+[21:50:16] INFO: geoadjust.gui.main_window - ============================================================
+[21:50:16] INFO: geoadjust.gui.main_window - Текущий проект: Новый проект 6
+[21:50:16] INFO: geoadjust.gui.main_window - Проверка данных проекта...
+[21:50:16] INFO: geoadjust.gui.main_window - Количество измерений: 2526
+[21:50:16] INFO: geoadjust.gui.main_window - Количество пунктов: 61
+[21:50:16] INFO: geoadjust.gui.main_window - Создание интеграции обработки...
+[21:50:22] INFO: geoadjust.gui.main_window - Интеграция обработки создана и настроена
+[21:50:22] INFO: geoadjust.gui.main_window - Установка моделей данных...
+[21:50:22] ERROR: geoadjust.gui.main_window - КРИТИЧЕСКАЯ ОШИБКА при уравнивании: 'QStandardItemModel' object is not callable Traceback (most recent call last): File "gui\main_window.py", line 825, in _adjust_classic TypeError: 'QStandardItemModel' object is not callable

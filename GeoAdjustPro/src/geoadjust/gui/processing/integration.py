@@ -34,15 +34,30 @@ class ProcessingIntegration(QObject):
         self.builder = EquationsBuilder()
         self.weight_builder = WeightBuilder()
     
-    def set_models(self, points_model, observations_model):
+    def set_models(self, points_view, observations_view):
         """Установка моделей данных для интеграции
         
         Args:
-            points_model: PointsTableModel - модель пунктов
-            observations_model: ObservationsTableModel - модель измерений
+            points_view: PointsTableView - представление пунктов
+            observations_view: ObservationsTableView - представление измерений
         """
-        self.points_model = points_model
-        self.observations_model = observations_model
+        # Получаем модели из представлений
+        self.points_model = points_view.model() if hasattr(points_view, 'model') else points_view
+        self.observations_model = observations_view.model() if hasattr(observations_view, 'model') else observations_view
+        
+        # Сохраняем ссылки на представления для доступа к данным
+        self.points_view = points_view
+        self.observations_view = observations_view
+    
+    def set_project_data(self, points_dict, observations_list):
+        """Установка данных проекта напрямую
+        
+        Args:
+            points_dict: Dict[str, NetworkPoint] - словарь пунктов
+            observations_list: List[Observation] - список измерений
+        """
+        self._project_points = points_dict
+        self._project_observations = observations_list
     
     def prepare_data_for_adjustment(self) -> tuple:
         """Подготовка данных для уравнивания из моделей
@@ -50,6 +65,21 @@ class ProcessingIntegration(QObject):
         Returns:
             tuple: (points_dict, observations_list, fixed_points)
         """
+        # Если данные проекта установлены напрямую, используем их
+        if hasattr(self, '_project_points') and self._project_points:
+            points_dict = self._project_points
+            observations_list = self._project_observations or []
+            fixed_points = [pid for pid, p in points_dict.items() 
+                          if getattr(p, 'coord_type', 'FREE') == 'FIXED']
+            
+            logger.info(f"Подготовлено для уравнивания (из проекта): "
+                       f"{len(points_dict)} пунктов, "
+                       f"{len(observations_list)} измерений, "
+                       f"{len(fixed_points)} исходных пунктов")
+            
+            return points_dict, observations_list, fixed_points
+        
+        # Иначе пытаемся получить из моделей
         if self.points_model is None or self.observations_model is None:
             raise ValueError("Модели данных не установлены")
         

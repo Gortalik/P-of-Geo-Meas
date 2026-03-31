@@ -1,518 +1,418 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Таблица измерений
-Реализует отображение и редактирование списка измерений
+Таблица измерений с разделением по типам:
+- Нивелирование (ходы с превышениями и боковые измерения)
+- Тахеометрия (станции с горизонтальными/вертикальными углами и расстояниями)
+- GNSS векторы (с СКП по средне-взвешенному)
+
+Угловые величины отображаются в градусах, минутах и секундах.
 """
 
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTableView, 
-                             QAbstractItemView, QMenu, QAction, QPushButton,
-                             QDialog, QFormLayout, QLineEdit, QComboBox,
-                             QDialogButtonBox, QMessageBox, QLabel, QDoubleSpinBox)
-from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QStandardItemModel, QStandardItem
+                             QAbstractItemView, QMenu, QAction, QHeaderView,
+                             QPushButton, QTabWidget)
+from PyQt5.QtCore import Qt, QAbstractTableModel, pyqtSignal
+from PyQt5.QtGui import QColor, QFont
+from typing import List, Dict, Any, Optional
+
+from geoadjust.utils import decimal_to_dms, format_dms_compact
 
 
-class ManualObservationInputDialog(QDialog):
-    """Диалог ручного ввода измерения"""
+class ObservationsTableModel(QAbstractTableModel):
+    """Модель таблицы измерений с разделением по типам"""
     
-    def __init__(self, parent=None, obs_data=None, available_points=None):
+    # Типы измерений для каждой вкладки
+    LEVELING_TYPES = ['height_diff', 'backsight', 'foresight', 'intermediate']
+    TOTAL_STATION_TYPES = ['direction', 'zenith_angle', 'vertical_angle', 'distance', 
+                          'slope_distance', 'horizontal_distance']
+    GNSS_TYPES = ['gnss_vector']
+    
+    HEADERS = {
+        'leveling': ['№', 'Тип', 'От пункта', 'К пункту', 'Превышение (м)', 
+                     'Расстояние (м)', 'Статус'],
+        'total_station': ['№', 'Станция', 'Цель', 'Гор. угол', 'Зен. угол', 
+                         'Накл. расст.', 'Гор. расст.', 'Статус'],
+        'gnss': ['№', 'От станции', 'К станции', 'dX (м)', 'dY (м)', 'dZ (м)',
+                 'σdX (мм)', 'σdY (мм)', 'σdZ (мм)', 'Качество', 'Спутников']
+    }
+    
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Ввод измерения")
-        self.resize(400, 400)
-        
-        layout = QFormLayout(self)
-        
-        # ID измерения
-        self.id_edit = QLineEdit()
-        if obs_data:
-            self.id_edit.setText(obs_data.get('id', ''))
-        layout.addRow("ID измерения:", self.id_edit)
-        
-        # Тип измерения
-        self.type_combo = QComboBox()
-        self.type_combo.addItems(["direction", "distance", "height_diff", "angle", "zenith_angle"])
-        if obs_data:
-            idx = self.type_combo.findText(obs_data.get('type', 'direction'))
-            if idx >= 0:
-                self.type_combo.setCurrentIndex(idx)
-        layout.addRow("Тип измерения:", self.type_combo)
-        
-        # От пункта
-        self.from_point_combo = QComboBox()
-        self.from_point_combo.setEditable(True)
-        if available_points:
-            self.from_point_combo.addItems(available_points)
-        if obs_data:
-            self.from_point_combo.setCurrentText(obs_data.get('from_point', ''))
-        layout.addRow("От пункта:", self.from_point_combo)
-        
-        # К пункту
-        self.to_point_combo = QComboBox()
-        self.to_point_combo.setEditable(True)
-        if available_points:
-            self.to_point_combo.addItems(available_points)
-        if obs_data:
-            self.to_point_combo.setCurrentText(obs_data.get('to_point', ''))
-        layout.addRow("К пункту:", self.to_point_combo)
-        
-        # Значение
-        self.value_edit = QLineEdit()
-        if obs_data:
-            self.value_edit.setText(str(obs_data.get('value', '')))
-        layout.addRow("Значение:", self.value_edit)
-        
-        # Единица измерения
-        self.unit_combo = QComboBox()
-        self.unit_combo.addItems(["м", "°", "′", "″", "град", "рад", "гон"])
-        if obs_data:
-            idx = self.unit_combo.findText(obs_data.get('unit', 'м'))
-            if idx >= 0:
-                self.unit_combo.setCurrentIndex(idx)
-        layout.addRow("Единица измерения:", self.unit_combo)
-        
-        # СКП
-        self.std_error_edit = QLineEdit()
-        if obs_data:
-            self.std_error_edit.setText(str(obs_data.get('std_error', '')))
-        layout.addRow("СКП:", self.std_error_edit)
-        
-        # Статус
-        self.status_combo = QComboBox()
-        self.status_combo.addItems(["active", "excluded", "rejected"])
-        if obs_data:
-            idx = self.status_combo.findText(obs_data.get('status', 'active'))
-            if idx >= 0:
-                self.status_combo.setCurrentIndex(idx)
-        layout.addRow("Статус:", self.status_combo)
-        
-        # Прибор
-        self.instrument_edit = QLineEdit()
-        if obs_data:
-            self.instrument_edit.setText(obs_data.get('instrument', ''))
-        layout.addRow("Прибор:", self.instrument_edit)
-        
-        # Примечание
-        self.notes_edit = QLineEdit()
-        if obs_data:
-            self.notes_edit.setText(obs_data.get('notes', ''))
-        layout.addRow("Примечание:", self.notes_edit)
-        
-        # Кнопки
-        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        button_box.accepted.connect(self.accept)
-        button_box.rejected.connect(self.reject)
-        layout.addRow(button_box)
+        self._observations: List[Any] = []
+        self._filtered_observations: List[Any] = []
+        self._current_tab = 'total_station'  # По умолчанию тахеометрия
     
-    def get_observation_data(self):
-        """Получение данных измерения"""
-        return {
-            'id': self.id_edit.text().strip(),
-            'type': self.type_combo.currentText(),
-            'from_point': self.from_point_combo.currentText().strip(),
-            'to_point': self.to_point_combo.currentText().strip(),
-            'value': self.value_edit.text().strip(),
-            'unit': self.unit_combo.currentText(),
-            'std_error': self.std_error_edit.text().strip(),
-            'status': self.status_combo.currentText(),
-            'instrument': self.instrument_edit.text().strip(),
-            'notes': self.notes_edit.text().strip()
-        }
-
-
-class ObservationsTableWidget(QWidget):
-    """Виджет таблицы измерений с кнопками управления"""
+    def set_observations(self, observations: List[Any]):
+        """Установка списка измерений"""
+        self.beginResetModel()
+        self._observations = observations
+        self._filter_observations()
+        self.endResetModel()
     
-    # Сигналы
-    observation_selected = pyqtSignal(str)
-    observation_deleted = pyqtSignal(list)
-    observation_added = pyqtSignal(dict)
-    observation_edited = pyqtSignal(dict)
-    observation_toggled = pyqtSignal(str, bool)
-    observation_imported = pyqtSignal(list)
-    
-    def __init__(self, parent=None, available_points=None):
-        super().__init__(parent)
-        self.available_points = available_points or []
-        self._init_ui()
-    
-    def _init_ui(self):
-        """Инициализация интерфейса"""
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
+    def set_tab(self, tab: str):
+        """Переключение вкладки
         
-        # Панель кнопок
-        button_layout = QHBoxLayout()
-        
-        self.add_btn = QPushButton("➕ Добавить измерение")
-        self.add_btn.clicked.connect(self._add_observation_manual)
-        button_layout.addWidget(self.add_btn)
-        
-        self.edit_btn = QPushButton("✏️ Редактировать")
-        self.edit_btn.clicked.connect(self._edit_observation_manual)
-        button_layout.addWidget(self.edit_btn)
-        
-        self.delete_btn = QPushButton("🗑️ Удалить")
-        self.delete_btn.clicked.connect(self._delete_observation)
-        button_layout.addWidget(self.delete_btn)
-        
-        self.toggle_btn = QPushButton("🔄 Вкл/Выкл")
-        self.toggle_btn.clicked.connect(self._toggle_observation)
-        button_layout.addWidget(self.toggle_btn)
-        
-        button_layout.addStretch()
-        
-        self.import_btn = QPushButton("📂 Импорт")
-        self.import_btn.clicked.connect(self._import_observations)
-        button_layout.addWidget(self.import_btn)
-        
-        layout.addLayout(button_layout)
-        
-        # Таблица
-        self.table_view = ObservationsTableView(self)
-        self.table_view.observation_selected.connect(self.observation_selected)
-        self.table_view.observation_deleted.connect(self.observation_deleted)
-        self.table_view.observation_toggled.connect(self.observation_toggled)
-        self.table_view.observation_imported.connect(self.observation_imported)
-        layout.addWidget(self.table_view)
+        Args:
+            tab: 'leveling', 'total_station', или 'gnss'
+        """
+        self._current_tab = tab
+        self.beginResetModel()
+        self._filter_observations()
+        self.endResetModel()
     
-    def set_available_points(self, points):
-        """Установка доступных пунктов"""
-        self.available_points = points
+    def _filter_observations(self):
+        """Фильтрация измерений по текущей вкладке"""
+        if self._current_tab == 'leveling':
+            self._filtered_observations = [
+                obs for obs in self._observations 
+                if self._get_obs_type(obs) in self.LEVELING_TYPES
+            ]
+        elif self._current_tab == 'total_station':
+            self._filtered_observations = [
+                obs for obs in self._observations 
+                if self._get_obs_type(obs) in self.TOTAL_STATION_TYPES
+            ]
+        elif self._current_tab == 'gnss':
+            self._filtered_observations = [
+                obs for obs in self._observations 
+                if self._get_obs_type(obs) in self.GNSS_TYPES
+            ]
+        else:
+            self._filtered_observations = self._observations
     
-    def _add_observation_manual(self):
-        """Ручное добавление измерения"""
-        dialog = ManualObservationInputDialog(self, available_points=self.available_points)
-        if dialog.exec_() == QDialog.Accepted:
-            obs_data = dialog.get_observation_data()
-            if not obs_data['id']:
-                QMessageBox.warning(self, "Ошибка", "ID измерения не может быть пустым")
-                return
-            if not obs_data['from_point'] or not obs_data['to_point']:
-                QMessageBox.warning(self, "Ошибка", "Необходимо указать начальный и конечный пункты")
-                return
-            
-            # Добавление в таблицу
-            self.table_view.add_observation_from_data(obs_data)
-            self.observation_added.emit(obs_data)
+    def _get_obs_type(self, obs) -> str:
+        """Получение типа измерения из объекта или словаря"""
+        if isinstance(obs, dict):
+            return obs.get('type', obs.get('obs_type', ''))
+        return getattr(obs, 'obs_type', '')
     
-    def _edit_observation_manual(self):
-        """Ручное редактирование измерения"""
-        selected = self.table_view.get_selected_observations()
-        if not selected:
-            QMessageBox.information(self, "Информация", "Выберите измерение для редактирования")
-            return
+    def _get_from_point(self, obs) -> str:
+        """Получение начальной точки"""
+        if isinstance(obs, dict):
+            return obs.get('from_point', '')
+        return getattr(obs, 'from_point', '')
+    
+    def _get_to_point(self, obs) -> str:
+        """Получение конечной точки"""
+        if isinstance(obs, dict):
+            return obs.get('to_point', '')
+        return getattr(obs, 'to_point', '')
+    
+    def _get_value(self, obs) -> float:
+        """Получение значения измерения"""
+        if isinstance(obs, dict):
+            return obs.get('value', 0)
+        return getattr(obs, 'value', 0)
+    
+    def rowCount(self, parent=None):
+        return len(self._filtered_observations)
+    
+    def columnCount(self, parent=None):
+        return len(self.HEADERS.get(self._current_tab, []))
+    
+    def headerData(self, section, orientation, role=Qt.DisplayRole):
+        if orientation == Qt.Horizontal and role == Qt.DisplayRole:
+            headers = self.HEADERS.get(self._current_tab, [])
+            if section < len(headers):
+                return headers[section]
+        return None
+    
+    def data(self, index, role=Qt.DisplayRole):
+        if not index.isValid() or role != Qt.DisplayRole:
+            return None
         
-        obs_data = selected[0]
-        dialog = ManualObservationInputDialog(self, obs_data, self.available_points)
-        if dialog.exec_() == QDialog.Accepted:
-            updated_data = dialog.get_observation_data()
-            self.table_view.update_observation(obs_data['id'], updated_data)
-            self.observation_edited.emit(updated_data)
+        row = index.row()
+        col = index.column()
+        
+        if row >= len(self._filtered_observations):
+            return None
+        
+        obs = self._filtered_observations[row]
+        
+        if self._current_tab == 'leveling':
+            return self._leveling_data(obs, col)
+        elif self._current_tab == 'total_station':
+            return self._total_station_data(obs, col)
+        elif self._current_tab == 'gnss':
+            return self._gnss_data(obs, col)
+        
+        return None
     
-    def _delete_observation(self):
-        """Удаление измерения"""
-        self.table_view._delete_observation()
+    def _leveling_data(self, obs, col):
+        """Данные для вкладки нивелирования"""
+        obs_type = self._get_obs_type(obs)
+        row = self._filtered_observations.index(obs)
+        
+        if col == 0:  # №
+            return str(row + 1)
+        elif col == 1:  # Тип
+            type_names = {
+                'height_diff': 'Превышение',
+                'backsight': 'Задняя рейка',
+                'foresight': 'Передняя рейка',
+                'intermediate': 'Промежуточная'
+            }
+            return type_names.get(obs_type, obs_type)
+        elif col == 2:  # От пункта
+            return self._get_from_point(obs)
+        elif col == 3:  # К пункту
+            return self._get_to_point(obs)
+        elif col == 4:  # Превышение
+            value = self._get_value(obs)
+            return f"{value:.5f}"
+        elif col == 5:  # Расстояние
+            dist = obs.get('distance') if isinstance(obs, dict) else getattr(obs, 'distance', None)
+            if dist is not None:
+                return f"{dist:.3f}"
+            return "-"
+        elif col == 6:  # Статус
+            is_active = obs.get('is_active', True) if isinstance(obs, dict) else getattr(obs, 'is_active', True)
+            return "Активно" if is_active else "Исключено"
+        return None
     
-    def _toggle_observation(self):
-        """Переключение статуса измерения"""
-        self.table_view._toggle_observation()
+    def _total_station_data(self, obs, col):
+        """Данные для вкладки тахеометрии"""
+        obs_type = self._get_obs_type(obs)
+        row = self._filtered_observations.index(obs)
+        
+        if col == 0:  # №
+            return str(row + 1)
+        elif col == 1:  # Станция
+            return self._get_from_point(obs)
+        elif col == 2:  # Цель
+            return self._get_to_point(obs)
+        elif col == 3:  # Горизонтальный угол (DMS)
+            if obs_type in ['direction', 'azimuth']:
+                value = self._get_value(obs)
+                # Конвертация из гон в градусы если нужно
+                angle_unit = obs.get('angle_unit', 'gons') if isinstance(obs, dict) else getattr(obs, 'angle_unit', 'gons')
+                if angle_unit == 'gons':
+                    value = value * 0.9  # гоны -> градусы
+                return format_dms_compact(value)
+            return "-"
+        elif col == 4:  # Зенитный угол (DMS)
+            if obs_type in ['zenith_angle', 'vertical_angle']:
+                value = self._get_value(obs)
+                angle_unit = obs.get('angle_unit', 'gons') if isinstance(obs, dict) else getattr(obs, 'angle_unit', 'gons')
+                if angle_unit == 'gons':
+                    value = value * 0.9
+                return format_dms_compact(value)
+            return "-"
+        elif col == 5:  # Наклонное расстояние
+            if obs_type in ['slope_distance', 'distance']:
+                value = self._get_value(obs)
+                return f"{value:.4f}"
+            return "-"
+        elif col == 6:  # Горизонтальное расстояние
+            if obs_type == 'horizontal_distance':
+                value = self._get_value(obs)
+                return f"{value:.4f}"
+            return "-"
+        elif col == 7:  # Статус
+            is_active = obs.get('is_active', True) if isinstance(obs, dict) else getattr(obs, 'is_active', True)
+            return "Активно" if is_active else "Исключено"
+        return None
     
-    def _import_observations(self):
-        """Импорт измерений"""
-        self.table_view._import_observations()
+    def _gnss_data(self, obs, col):
+        """Данные для вкладки GNSS векторов"""
+        row = self._filtered_observations.index(obs)
+        
+        if col == 0:  # №
+            return str(row + 1)
+        elif col == 1:  # От станции
+            return self._get_from_point(obs)
+        elif col == 2:  # К станции
+            return self._get_to_point(obs)
+        elif col == 3:  # dX
+            dx = obs.get('delta_x') if isinstance(obs, dict) else getattr(obs, 'delta_x', None)
+            if dx is not None:
+                return f"{dx:.4f}"
+            return "-"
+        elif col == 4:  # dY
+            dy = obs.get('delta_y') if isinstance(obs, dict) else getattr(obs, 'delta_y', None)
+            if dy is not None:
+                return f"{dy:.4f}"
+            return "-"
+        elif col == 5:  # dZ
+            dz = obs.get('delta_z') if isinstance(obs, dict) else getattr(obs, 'delta_z', None)
+            if dz is not None:
+                return f"{dz:.4f}"
+            return "-"
+        elif col == 6:  # σdX
+            sx = obs.get('sigma_x') if isinstance(obs, dict) else getattr(obs, 'sigma_x', None)
+            if sx is not None:
+                return f"{sx * 1000:.2f}"
+            return "-"
+        elif col == 7:  # σdY
+            sy = obs.get('sigma_y') if isinstance(obs, dict) else getattr(obs, 'sigma_y', None)
+            if sy is not None:
+                return f"{sy * 1000:.2f}"
+            return "-"
+        elif col == 8:  # σdZ
+            sz = obs.get('sigma_z') if isinstance(obs, dict) else getattr(obs, 'sigma_z', None)
+            if sz is not None:
+                return f"{sz * 1000:.2f}"
+            return "-"
+        elif col == 9:  # Качество
+            quality_map = {1: 'Fix', 2: 'Float', 3: 'SBAS', 4: 'DGPS', 5: 'Single'}
+            q = obs.get('quality') if isinstance(obs, dict) else getattr(obs, 'quality', None)
+            return quality_map.get(q, str(q) if q else "-")
+        elif col == 10:  # Спутников
+            ns = obs.get('n_satellites') if isinstance(obs, dict) else getattr(obs, 'n_satellites', None)
+            return str(ns) if ns is not None else "-"
+        return None
     
-    def load_from_data(self, observations):
-        """Загрузка данных"""
-        self.table_view.load_from_data(observations)
+    def get_observation(self, row: int) -> Optional[Any]:
+        """Получение измерения по строке"""
+        if 0 <= row < len(self._filtered_observations):
+            return self._filtered_observations[row]
+        return None
     
-    def update_data(self, observations):
-        """Обновление данных"""
-        self.table_view.update_data(observations)
+    def update_observation(self, row: int, obs: Any):
+        """Обновление измерения"""
+        if 0 <= row < len(self._filtered_observations):
+            self._filtered_observations[row] = obs
+            self.dataChanged.emit(self.index(row, 0), 
+                                 self.index(row, self.columnCount() - 1))
 
 
 class ObservationsTableView(QTableView):
-    """Таблица измерений"""
-    
-    # Сигналы
-    observation_selected = pyqtSignal(str)
-    observation_toggled = pyqtSignal(str, bool)  # Сигнал при отключении/включении измерения
-    observation_deleted = pyqtSignal(list)
-    observation_imported = pyqtSignal(list)
+    """Таблица измерений с вкладками по типам"""
     
     def __init__(self, parent=None):
         super().__init__(parent)
         
-        # Настройка таблицы
+        self.model = ObservationsTableModel(self)
+        self.setModel(self.model)
+        
+        # Настройка отображения
+        self.setAlternatingRowColors(True)
         self.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
-        self.setAlternatingRowColors(True)
-        self.setSortingEnabled(True)
-        self.horizontalHeader().setStretchLastSection(True)
-        self.verticalHeader().setVisible(False)
+        self.setSortingEnabled(False)
+        
+        # Настройка заголовков
+        header = self.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.Interactive)
+        header.setStretchLastSection(True)
         
         # Контекстное меню
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self._show_context_menu)
-        
-        # Двойной клик
-        self.doubleClicked.connect(self._on_double_click)
-        
-        # Модель данных
-        self._setup_model()
     
-    def _setup_model(self):
-        """Настройка модели данных"""
-        self.model = QStandardItemModel(0, 10, self)
-        self.model.setHorizontalHeaderLabels([
-            "ID", "Тип", "От пункта", "К пункту", 
-            "Значение", "Ед. изм.", "СКП", "Статус",
-            "Прибор", "Примечание"
-        ])
-        self.setModel(self.model)
+    def set_observations(self, observations: List[Any]):
+        """Установка списка измерений"""
+        self.model.set_observations(observations)
+    
+    def set_tab(self, tab: str):
+        """Переключение вкладки"""
+        self.model.set_tab(tab)
     
     def _show_context_menu(self, position):
         """Показ контекстного меню"""
         menu = QMenu(self)
         
-        # Команды импорта
-        import_action = QAction("Импорт из файла", self)
-        import_action.triggered.connect(self._import_observations)
-        menu.addAction(import_action)
-        
+        exclude_action = menu.addAction("Исключить измерение")
+        include_action = menu.addAction("Включить измерение")
         menu.addSeparator()
+        show_all_action = menu.addAction("Показать все измерения")
         
-        # Команды редактирования
-        delete_action = QAction("Удалить измерение", self)
-        delete_action.triggered.connect(self._delete_observation)
-        menu.addAction(delete_action)
+        action = menu.exec_(self.mapToGlobal(position))
         
-        toggle_action = QAction("Отключить измерение", self)
-        toggle_action.triggered.connect(self._toggle_observation)
-        menu.addAction(toggle_action)
-        
-        menu.addSeparator()
-        
-        # Команды экспорта
-        export_action = QAction("Экспорт в файл", self)
-        export_action.triggered.connect(self._export_observations)
-        menu.addAction(export_action)
-        
-        menu.exec_(self.mapToGlobal(position))
+        if action == exclude_action:
+            self._exclude_selected()
+        elif action == include_action:
+            self._include_selected()
+        elif action == show_all_action:
+            self.set_tab('total_station')  # По умолчанию
     
-    def _on_double_click(self, index):
-        """Обработка двойного клика"""
-        row = index.row()
-        if row >= 0:
-            obs_id = self.model.index(row, 0).data()
-            if obs_id:
-                self.observation_selected.emit(obs_id)
+    def _exclude_selected(self):
+        """Исключение выбранных измерений"""
+        for index in self.selectedIndexes():
+            if index.column() == 0:
+                obs = self.model.get_observation(index.row())
+                if obs:
+                    obs.is_active = False
+        self.model.set_observations(self.model._observations)
     
-    def _import_observations(self):
-        """Импорт измерений"""
-        from PyQt5.QtWidgets import QFileDialog
+    def _include_selected(self):
+        """Включение выбранных измерений"""
+        for index in self.selectedIndexes():
+            if index.column() == 0:
+                obs = self.model.get_observation(index.row())
+                if obs:
+                    obs.is_active = True
+        self.model.set_observations(self.model._observations)
+
+
+class ObservationsTableWidget(QWidget):
+    """Виджет таблицы измерений с кнопками управления и вкладками по типам"""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
         
-        file_path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Импорт измерений",
-            "",
-            "All Supported Files (*.gsi *.sdr *.dat);;"
-            "Leica GSI (*.gsi);;Sokkia SDR (*.sdr);;DAT Files (*.dat);;"
-            "Все файлы (*)"
-        )
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
         
-        if file_path:
-            # Здесь будет логика импорта в зависимости от формата
-            imported_data = self._parse_file(file_path)
-            if imported_data:
-                self._add_observations(imported_data)
-                self.observation_imported.emit(imported_data)
-    
-    def _parse_file(self, file_path: str) -> list:
-        """Парсинг файла измерений"""
-        # Заглушка для примера
-        # В реальной реализации здесь будет вызов соответствующего парсера
-        return []
-    
-    def _add_observations(self, observations: list):
-        """Добавление измерений в таблицу"""
-        for obs in observations:
-            row_data = [
-                obs.get('id', ''),
-                obs.get('type', 'direction'),
-                obs.get('from_point', ''),
-                obs.get('to_point', ''),
-                str(obs.get('value', '')),
-                obs.get('unit', ''),
-                str(obs.get('std_error', '')),
-                obs.get('status', 'active'),
-                obs.get('instrument', ''),
-                obs.get('notes', '')
-            ]
-            items = [QStandardItem(str(val)) for val in row_data]
-            self.model.appendRow(items)
-    
-    def _delete_observation(self):
-        """Удаление измерения"""
-        selected_rows = self.selectionModel().selectedRows()
+        # Вкладки по типам измерений
+        from PyQt5.QtWidgets import QTabWidget
+        self.tabs = QTabWidget()
         
-        if selected_rows:
-            obs_ids = []
-            for index in sorted(selected_rows, reverse=True):
-                row = index.row()
-                obs_id = self.model.index(row, 0).data()
-                if obs_id:
-                    obs_ids.append(obs_id)
-                self.model.removeRow(row)
-            
-            self.observation_deleted.emit(obs_ids)
-    
-    def _toggle_observation(self):
-        """Отключение/включение измерения"""
-        selected_rows = self.selectionModel().selectedRows()
+        self.leveling_table = ObservationsTableView()
+        self.total_station_table = ObservationsTableView()
+        self.gnss_table = ObservationsTableView()
         
-        if selected_rows:
-            for index in selected_rows:
-                row = index.row()
-                obs_id = self.model.index(row, 0).data()
-                status = self.model.index(row, 7).data()
-                
-                # Переключение статуса
-                new_status = "excluded" if status == "active" else "active"
-                self.model.setItem(row, 7, QStandardItem(new_status))
-                
-                if obs_id:
-                    is_active = new_status == "active"
-                    self.observation_toggled.emit(obs_id, is_active)
-    
-    def _export_observations(self):
-        """Экспорт измерений"""
-        from PyQt5.QtWidgets import QFileDialog
+        self.tabs.addTab(self.leveling_table, "Нивелирование")
+        self.tabs.addTab(self.total_station_table, "Тахеометрия")
+        self.tabs.addTab(self.gnss_table, "GNSS")
         
-        file_path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Экспорт измерений",
-            "",
-            "CSV Files (*.csv);;JSON Files (*.json);;Все файлы (*)"
-        )
+        layout.addWidget(self.tabs)
         
-        if file_path:
-            self._save_to_file(file_path)
-    
-    def _save_to_file(self, file_path: str):
-        """Сохранение в файл"""
-        import json
-        import csv
+        # Кнопки управления
+        btn_layout = QHBoxLayout()
         
-        observations = []
-        for row in range(self.model.rowCount()):
-            obs_data = {
-                'id': self.model.index(row, 0).data(),
-                'type': self.model.index(row, 1).data(),
-                'from_point': self.model.index(row, 2).data(),
-                'to_point': self.model.index(row, 3).data(),
-                'value': self.model.index(row, 4).data(),
-                'unit': self.model.index(row, 5).data(),
-                'std_error': self.model.index(row, 6).data(),
-                'status': self.model.index(row, 7).data(),
-                'instrument': self.model.index(row, 8).data(),
-                'notes': self.model.index(row, 9).data()
-            }
-            observations.append(obs_data)
+        self.add_btn = QPushButton("Добавить")
+        self.exclude_btn = QPushButton("Исключить")
+        self.include_btn = QPushButton("Включить")
+        self.delete_btn = QPushButton("Удалить")
         
-        if file_path.endswith('.json'):
-            with open(file_path, 'w', encoding='utf-8') as f:
-                json.dump(observations, f, indent=2, ensure_ascii=False)
-        elif file_path.endswith('.csv'):
-            with open(file_path, 'w', newline='', encoding='utf-8') as f:
-                writer = csv.writer(f)
-                writer.writerow(['ID', 'Type', 'From', 'To', 'Value', 'Unit', 'StdError', 'Status', 'Instrument', 'Notes'])
-                for obs in observations:
-                    writer.writerow([
-                        obs['id'], obs['type'], obs['from_point'], obs['to_point'],
-                        obs['value'], obs['unit'], obs['std_error'], obs['status'],
-                        obs['instrument'], obs['notes']
-                    ])
-    
-    def load_from_data(self, observations: list):
-        """Загрузка данных из списка"""
-        self.model.setRowCount(0)
+        btn_layout.addWidget(self.add_btn)
+        btn_layout.addWidget(self.exclude_btn)
+        btn_layout.addWidget(self.include_btn)
+        btn_layout.addWidget(self.delete_btn)
+        btn_layout.addStretch()
         
-        for obs in observations:
-            row_data = [
-                obs.get('id', ''),
-                obs.get('type', 'direction'),
-                obs.get('from_point', ''),
-                obs.get('to_point', ''),
-                str(obs.get('value', '')),
-                obs.get('unit', ''),
-                str(obs.get('std_error', '')),
-                obs.get('status', 'active'),
-                obs.get('instrument', ''),
-                obs.get('notes', '')
-            ]
-            items = [QStandardItem(str(val)) for val in row_data]
-            self.model.appendRow(items)
-    
-    def update_data(self, observations: list):
-        """Обновление данных таблицы (алиас для load_from_data)"""
-        self.load_from_data(observations)
-    
-    def get_selected_observations(self) -> list:
-        """Получение выбранных измерений"""
-        selected_rows = self.selectionModel().selectedRows()
-        observations = []
+        layout.addLayout(btn_layout)
         
-        for index in selected_rows:
-            row = index.row()
-            obs_data = {
-                'id': self.model.index(row, 0).data(),
-                'type': self.model.index(row, 1).data(),
-                'from_point': self.model.index(row, 2).data(),
-                'to_point': self.model.index(row, 3).data(),
-                'value': self.model.index(row, 4).data(),
-                'status': self.model.index(row, 7).data()
-            }
-            observations.append(obs_data)
+        # Подключение сигналов переключения вкладок
+        self.tabs.currentChanged.connect(self._on_tab_changed)
+    
+    def _on_tab_changed(self, index):
+        """Обработка переключения вкладки"""
+        tab_names = ['leveling', 'total_station', 'gnss']
+        if index < len(tab_names):
+            table = [self.leveling_table, self.total_station_table, self.gnss_table][index]
+            table.set_tab(tab_names[index])
+    
+    def set_observations(self, observations):
+        """Установка списка измерений"""
+        self.leveling_table.set_observations(observations)
+        self.total_station_table.set_observations(observations)
+        self.gnss_table.set_observations(observations)
         
-        return observations
+        # Устанавливаем правильные вкладки
+        self.leveling_table.set_tab('leveling')
+        self.total_station_table.set_tab('total_station')
+        self.gnss_table.set_tab('gnss')
     
-    def update_observation_status(self, obs_id: str, status: str):
-        """Обновление статуса измерения"""
-        for row in range(self.model.rowCount()):
-            if self.model.index(row, 0).data() == obs_id:
-                self.model.setItem(row, 7, QStandardItem(status))
-                break
+    def update_data(self, observations):
+        """Обновление данных (алиас для set_observations)"""
+        self.set_observations(observations)
     
-    def add_observation_from_data(self, obs_data: dict):
-        """Добавление измерения из данных"""
-        row_data = [
-            obs_data.get('id', ''),
-            obs_data.get('type', 'direction'),
-            obs_data.get('from_point', ''),
-            obs_data.get('to_point', ''),
-            str(obs_data.get('value', '')),
-            obs_data.get('unit', ''),
-            str(obs_data.get('std_error', '')),
-            obs_data.get('status', 'active'),
-            obs_data.get('instrument', ''),
-            obs_data.get('notes', '')
-        ]
-        items = [QStandardItem(str(val)) for val in row_data]
-        self.model.appendRow(items)
-    
-    def update_observation(self, obs_id: str, updated_data: dict):
-        """Обновление данных измерения"""
-        for row in range(self.model.rowCount()):
-            if self.model.index(row, 0).data() == obs_id:
-                self.model.setItem(row, 0, QStandardItem(updated_data.get('id', '')))
-                self.model.setItem(row, 1, QStandardItem(updated_data.get('type', 'direction')))
-                self.model.setItem(row, 2, QStandardItem(updated_data.get('from_point', '')))
-                self.model.setItem(row, 3, QStandardItem(updated_data.get('to_point', '')))
-                self.model.setItem(row, 4, QStandardItem(str(updated_data.get('value', ''))))
-                self.model.setItem(row, 5, QStandardItem(updated_data.get('unit', '')))
-                self.model.setItem(row, 6, QStandardItem(str(updated_data.get('std_error', ''))))
-                self.model.setItem(row, 7, QStandardItem(updated_data.get('status', 'active')))
-                self.model.setItem(row, 8, QStandardItem(updated_data.get('instrument', '')))
-                self.model.setItem(row, 9, QStandardItem(updated_data.get('notes', '')))
-                break
+    def model(self):
+        """Возврат модели текущей вкладки"""
+        current_table = self.tabs.currentWidget()
+        if hasattr(current_table, 'model'):
+            return current_table.model()
+        return None

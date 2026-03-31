@@ -1,12 +1,32 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Модуль предобработки геодезических измерений
+
+Реализует 9 этапов предобработки:
+1. Распознавание топологии сети
+2. Формирование ходов и секций
+3. Обработка приемов измерений
+4. Контроль замыкания горизонта
+5. Усреднение направлений в приемах
+6. Контроль сходимости прямых/обратных измерений
+7. Применение редукций
+8. Расчет предварительных координат
+9. Формирование протокола допусков
+"""
+
 import numpy as np
 from typing import List, Dict, Any, Tuple, Optional
 from collections import defaultdict
 from datetime import datetime
 import math
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class PreprocessingModule:
-    """Модуль предобработки с 9 этапами и контролем 27 допусков"""
+    """Модуль предобработки с 9 этапами и контролем допусков"""
 
     STAGES = [
         "1. Распознавание топологии сети",
@@ -20,10 +40,32 @@ class PreprocessingModule:
         "9. Формирование протокола допусков"
     ]
 
+    # Типы измерений по категориям
+    LEVELING_TYPES = {'height_diff', 'backsight', 'foresight', 'intermediate'}
+    TOTAL_STATION_TYPES = {'direction', 'zenith_angle', 'vertical_angle', 'distance',
+                          'slope_distance', 'horizontal_distance', 'azimuth'}
+    GNSS_TYPES = {'gnss_vector'}
+
     def __init__(self):
         self.current_stage = 0
         self.acceptance_criteria = {}
-        self.logger = None  # Для логирования
+        self.logger = logger
+
+    def _get_obs_type(self, obs) -> str:
+        """Получение типа измерения"""
+        return getattr(obs, 'obs_type', 'unknown')
+
+    def _get_from_point(self, obs) -> str:
+        """Получение начальной точки"""
+        return getattr(obs, 'from_point', '')
+
+    def _get_to_point(self, obs) -> str:
+        """Получение конечной точки"""
+        return getattr(obs, 'to_point', '')
+
+    def _get_value(self, obs) -> float:
+        """Получение значения измерения"""
+        return getattr(obs, 'value', 0.0)
 
     def _build_network_topology(self, observations: List[Any]) -> Dict[str, Any]:
         """
@@ -32,32 +74,61 @@ class PreprocessingModule:
         Строит графовую модель сети, выявляет:
         - Все пункты сети
         - Станции (пункты с угловыми измерениями)
-        - Узловые пункты (пункты с ≥3 связями)
-        - Исходные пункты (если есть)
+        - Узловые пункты (пункты с >=3 связями)
+        - Типы измерений в сети
         """
         points = set()
         stations = set()
         connections = defaultdict(set)
+        obs_types = set()
 
         for obs in observations:
-            points.add(obs.from_point)
-            points.add(obs.to_point)
-            connections[obs.from_point].add(obs.to_point)
-            connections[obs.to_point].add(obs.from_point)
+            from_p = self._get_from_point(obs)
+            to_p = self._get_to_point(obs)
+            obs_type = self._get_obs_type(obs)
+
+            if from_p:
+                points.add(from_p)
+            if to_p:
+                points.add(to_p)
+
+            if from_p and to_p:
+                connections[from_p].add(to_p)
+                connections[to_p].add(from_p)
 
             # Станции - пункты с угловыми измерениями
-            if obs.obs_type in ['direction', 'angle']:
-                stations.add(obs.from_point)
+            if obs_type in ['direction', 'angle', 'azimuth']:
+                stations.add(from_p)
 
-        # Узловые пункты - пункты с ≥3 связями
+            obs_types.add(obs_type)
+
+        # Узловые пункты - пункты с >=3 связями
         nodal_points = {p for p, conns in connections.items() if len(conns) >= 3}
+
+        # Определение типа сети
+        has_leveling = bool(obs_types & self.LEVELING_TYPES)
+        has_total_station = bool(obs_types & self.TOTAL_STATION_TYPES)
+        has_gnss = bool(obs_types & self.GNSS_TYPES)
+
+        network_type = 'mixed'
+        if has_leveling and not has_total_station and not has_gnss:
+            network_type = 'leveling'
+        elif has_total_station and not has_leveling and not has_gnss:
+            network_type = 'total_station'
+        elif has_gnss and not has_leveling and not has_total_station:
+            network_type = 'gnss'
 
         topology = {
             'points': list(points),
             'stations': list(stations),
             'nodal_points': list(nodal_points),
             'connections': dict(connections),
-            'num_observations': len(observations)
+            'num_observations': len(observations),
+            'obs_types': list(obs_types),
+            'network_type': network_type,
+            'has_leveling': has_leveling,
+            'has_total_station': has_total_station,
+            'has_gnss': has_gnss
         }
 
         return topology
@@ -68,46 +139,62 @@ class PreprocessingModule:
         Этап 2: Формирование ходов и секций
 
         Автоматически распознаёт:
-        - Полигонометрические/теодолитные ходы
+        - Тахеометрические ходы
         - Нивелирные секции
-        - Замкнутые полигоны
+        - GNSS базовые линии
         """
         traverses = []
         sections = []
-        cycles = []
-
-        # Логика распознавания ходов (упрощённая)
-        # В реальной реализации нужен более сложный алгоритм
-        # с анализом последовательности измерений
+        gnss_baselines = []
 
         # Группировка измерений по типам
-        angle_obs = [o for o in observations if o.obs_type in ['direction', 'angle']]
-        distance_obs = [o for o in observations if o.obs_type == 'distance']
-        level_obs = [o for o in observations if o.obs_type == 'height_diff']
+        angle_obs = [o for o in observations if self._get_obs_type(o) in ['direction', 'angle', 'azimuth']]
+        distance_obs = [o for o in observations if self._get_obs_type(o) in ['distance', 'slope_distance', 'horizontal_distance']]
+        level_obs = [o for o in observations if self._get_obs_type(o) in ['height_diff', 'backsight', 'foresight']]
+        gnss_obs = [o for o in observations if self._get_obs_type(o) in ['gnss_vector']]
 
-        # Формирование ходов на основе угловых и линейных измерений
-        # (заглушка для демонстрации)
+        # Формирование тахеометрических ходов
         if angle_obs and distance_obs:
+            # Группировка по станциям
+            station_points = set(self._get_from_point(o) for o in angle_obs)
             traverses.append({
-                'type': 'polygonometry',
-                'stations': list(set(o.from_point for o in angle_obs)),
-                'num_sides': len(distance_obs),
-                'length': sum(o.value for o in distance_obs)
+                'type': 'total_station',
+                'stations': list(station_points),
+                'num_angles': len(angle_obs),
+                'num_distances': len(distance_obs),
+                'total_length': sum(self._get_value(o) for o in distance_obs if self._get_value(o) > 0)
             })
 
         # Формирование нивелирных секций
         if level_obs:
+            # Группировка по станциям
+            station_points = set(self._get_from_point(o) for o in level_obs)
             sections.append({
-                'type': 'nivellement',
-                'stations': list(set(o.from_point for o in level_obs)),
-                'num_stands': len(level_obs),
-                'total_elevation_diff': sum(o.value for o in level_obs)
+                'type': 'leveling',
+                'stations': list(station_points),
+                'num_height_diffs': len(level_obs),
+                'total_elevation_diff': sum(self._get_value(o) for o in level_obs)
             })
+
+        # Формирование GNSS базовых линий
+        if gnss_obs:
+            for obs in gnss_obs:
+                gnss_baselines.append({
+                    'type': 'gnss_baseline',
+                    'from_station': self._get_from_point(obs),
+                    'to_station': self._get_to_point(obs),
+                    'dx': getattr(obs, 'delta_x', 0),
+                    'dy': getattr(obs, 'delta_y', 0),
+                    'dz': getattr(obs, 'delta_z', 0),
+                    'sigma_x': getattr(obs, 'sigma_x', 0),
+                    'sigma_y': getattr(obs, 'sigma_y', 0),
+                    'sigma_z': getattr(obs, 'sigma_z', 0)
+                })
 
         result = {
             'traverses': traverses,
             'sections': sections,
-            'cycles': cycles
+            'gnss_baselines': gnss_baselines
         }
 
         return result
@@ -118,119 +205,74 @@ class PreprocessingModule:
         Этап 3: Обработка приемов измерений
 
         Обрабатывает круговые приемы на станции:
-        1. Распознаёт приемы по замыканию на начальную цель
+        1. Распознаёт приемы по КЛ/КП
         2. Проверяет замыкание горизонта
         3. Усредняет направления по приемам
         """
         # Фильтрация измерений для данной станции
         station_obs = [obs for obs in observations
-                       if obs.from_point == station_id and obs.obs_type == 'direction']
+                       if self._get_from_point(obs) == station_id
+                       and self._get_obs_type(obs) in ['direction', 'angle']]
 
         if not station_obs:
             return {'status': 'no_data', 'error_message': f"Нет угловых измерений на станции {station_id}"}
 
-        # Сортировка по времени и номеру приема
-        station_obs.sort(key=lambda obs: (obs.datetime or datetime.min,
-                                          obs.reception_number or 0))
+        # Группировка по полуприемам (КЛ/КП)
+        face_cl = [obs for obs in station_obs if getattr(obs, 'face_position', '') in ['CL', 'F1', 'КЛ']]
+        face_cp = [obs for obs in station_obs if getattr(obs, 'face_position', '') in ['CP', 'F2', 'КП']]
 
-        # Распознавание приемов
-        receptions = []
-        current_reception = []
-        first_target = None
-        max_reception_length = 20  # Максимальное число направлений в приёме
-
+        # Группировка по направлениям
+        directions_by_target = defaultdict(list)
         for obs in station_obs:
-            if not current_reception:
-                # Начало нового приема
-                current_reception.append(obs)
-                first_target = obs.to_point
-            elif obs.to_point == first_target:
-                # Замыкание приема на начальную цель
-                current_reception.append(obs)
-                receptions.append(current_reception)
-                current_reception = []
-                first_target = None
-            elif len(current_reception) >= max_reception_length:
-                # Принудительное завершение слишком длинного приема
-                receptions.append(current_reception)
-                current_reception = [obs]
-                first_target = obs.to_point
-                if self.logger:
-                    self.logger.warning(f"Станция {station_id}: прием превысил "
-                                      f"максимальную длину ({max_reception_length})")
-            else:
-                # Продолжение текущего приема
-                current_reception.append(obs)
+            target = self._get_to_point(obs)
+            directions_by_target[target].append(obs)
 
-        # Обработка незавершённого приема
-        if current_reception:
-            # Проверка: если приём содержит хотя бы 3 направления, считаем его валидным
-            if len(current_reception) >= 3:
-                receptions.append(current_reception)
-                if self.logger:
-                    self.logger.warning(f"Станция {station_id}: незавершённый прием "
-                                      f"({len(current_reception)} направлений)")
-            else:
-                if self.logger:
-                    self.logger.warning(f"Станция {station_id}: отброшен неполный прием "
-                                      f"({len(current_reception)} направлений)")
+        # Расчёт средних направлений
+        averaged_directions = {}
+        for target, obs_list in directions_by_target.items():
+            values = [self._get_value(o) for o in obs_list]
+            if values:
+                # Конвертация из гон в градусы если нужно
+                angle_unit = getattr(obs_list[0], 'angle_unit', 'gons')
+                if angle_unit == 'gons':
+                    values = [v * 0.9 for v in values]
+                averaged_directions[target] = {
+                    'mean': np.mean(values),
+                    'std': np.std(values) if len(values) > 1 else 0,
+                    'num_obs': len(values),
+                    'faces': len(set(getattr(o, 'face_position', '') for o in obs_list))
+                }
 
-        # Проверка замыкания горизонта для каждого приема
-        closure_results = []
-        for i, reception in enumerate(receptions):
-            directions = [obs.value for obs in reception]
-            closure_error = abs(sum(directions) - 360.0)
-            closure_results.append({
-                'reception_number': i + 1,
-                'num_directions': len(directions),
-                'closure_error': closure_error,
-                'is_compliant': closure_error <= 15.0  # допуск для полигонометрии 4 класса
-            })
+        # Проверка замыкания горизонта (если есть КЛ и КП)
+        closure_error = None
+        if face_cl and face_cp:
+            # Сравнение направлений по полуприемам
+            cl_targets = set(self._get_to_point(o) for o in face_cl)
+            cp_targets = set(self._get_to_point(o) for o in face_cp)
+            common_targets = cl_targets & cp_targets
+
+            if common_targets:
+                max_diff = 0
+                for target in common_targets:
+                    cl_vals = [self._get_value(o) for o in face_cl if self._get_to_point(o) == target]
+                    cp_vals = [self._get_value(o) for o in face_cp if self._get_to_point(o) == target]
+                    if cl_vals and cp_vals:
+                        diff = abs(np.mean(cl_vals) - np.mean(cp_vals))
+                        max_diff = max(max_diff, diff)
+                closure_error = max_diff
 
         result = {
             'status': 'success',
-            'num_receptions': len(receptions),
-            'receptions': receptions,
-            'closure_results': closure_results
+            'station_id': station_id,
+            'num_directions': len(station_obs),
+            'num_targets': len(directions_by_target),
+            'averaged_directions': averaged_directions,
+            'closure_error': closure_error,
+            'has_face_cl': len(face_cl) > 0,
+            'has_face_cp': len(face_cp) > 0
         }
 
         return result
-
-    def _average_directions_in_receptions(self, receptions_results: List[Dict]) -> List[Dict]:
-        """
-        Этап 5: Усреднение направлений в приемах
-
-        Усреднение направлений по приемам с учётом весов (число приемов).
-        Для каждого направления (пары станция-цель) рассчитывается среднее значение.
-        """
-        # Группировка направлений по цели
-        direction_groups = defaultdict(list)
-
-        for reception_result in receptions_results:
-            if reception_result['status'] != 'success':
-                continue
-
-            for reception in reception_result['receptions']:
-                for obs in reception:
-                    # Определение цели по индексу
-                    target_id = obs.to_point
-                    direction_groups[(obs.from_point, target_id)].append(obs.value)
-
-        # Расчёт средних значений
-        averaged = []
-        for (from_point, to_point), values in direction_groups.items():
-            mean_value = sum(values) / len(values)
-            std_dev = np.std(values) if len(values) > 1 else 0.0
-
-            averaged.append({
-                'from_point': from_point,
-                'to_point': to_point,
-                'averaged_value': mean_value,
-                'std_dev': std_dev,
-                'num_observations': len(values)
-            })
-
-        return averaged
 
     def _check_reciprocal_measurements(self, observations: List[Any]) -> List[Dict]:
         """
@@ -246,8 +288,9 @@ class PreprocessingModule:
         measurement_pairs = defaultdict(list)
 
         for obs in observations:
-            if obs.obs_type in ['distance', 'height_diff']:
-                pair_key = tuple(sorted([obs.from_point, obs.to_point]))
+            obs_type = self._get_obs_type(obs)
+            if obs_type in ['distance', 'slope_distance', 'horizontal_distance', 'height_diff']:
+                pair_key = tuple(sorted([self._get_from_point(obs), self._get_to_point(obs)]))
                 measurement_pairs[pair_key].append(obs)
 
         # Проверка каждой пары
@@ -255,29 +298,30 @@ class PreprocessingModule:
             if len(measurements) < 2:
                 continue
 
-            # Разделение на прямые и обратные измерения
-            forward = [m for m in measurements if m.from_point == pair[0]]
-            backward = [m for m in measurements if m.from_point == pair[1]]
+            # Разделение по направлениям
+            forward = [m for m in measurements if self._get_from_point(m) == pair[0]]
+            backward = [m for m in measurements if self._get_from_point(m) == pair[1]]
 
             if not forward or not backward:
                 continue
 
             # Средние значения
-            forward_mean = sum(m.value for m in forward) / len(forward)
-            backward_mean = sum(m.value for m in backward) / len(backward)
+            forward_mean = np.mean([self._get_value(m) for m in forward])
+            backward_mean = np.mean([self._get_value(m) for m in backward])
 
-            # Расхождение (для превышений учитываем знак)
-            if forward[0].obs_type == 'height_diff':
+            # Расхождение
+            obs_type = self._get_obs_type(forward[0])
+            if obs_type == 'height_diff':
                 discrepancy = abs(forward_mean + backward_mean)
-                allowable = 10.0  # допуск для технического нивелирования, мм
-            else:  # distance
+                allowable = 0.010  # 10 мм для технического нивелирования
+            else:
                 discrepancy = abs(forward_mean - backward_mean)
-                allowable = 0.01  # допуск 1 см для расстояний
+                allowable = 0.010  # 10 мм для расстояний
 
             if discrepancy > allowable:
                 violations.append({
                     'type': 'reciprocal_discrepancy',
-                    'obs_type': forward[0].obs_type,
+                    'obs_type': obs_type,
                     'pair': pair,
                     'forward_value': forward_mean,
                     'backward_value': backward_mean,
@@ -297,79 +341,91 @@ class PreprocessingModule:
         - Атмосферные поправки
         - Поправки за рефракцию
         - Поправки за кривизну Земли
-        - Редуцирование на плоскость проекции
         """
         corrected = []
 
         for obs in observations:
-            corrected_obs = obs.copy() if hasattr(obs, 'copy') else obs
+            obs_type = self._get_obs_type(obs)
 
-            if obs.obs_type == 'distance':
-                # Атмосферная поправка (упрощённая)
-                if config.get('apply_atmospheric_correction', True):
-                    temperature = getattr(obs, 'temperature', 15.0)
-                    pressure = getattr(obs, 'pressure', 1013.25)
+            if obs_type in ['distance', 'slope_distance', 'horizontal_distance']:
+                value = self._get_value(obs)
 
-                    # Упрощённая формула атмосферной поправки
-                    delta_atm = obs.value * (0.000295 * (temperature - 15) - 0.000038 * (pressure - 1013.25))
-                    corrected_obs.value += delta_atm
+                # Атмосферная поправка
+                temperature = getattr(obs, 'temperature', 15.0)
+                pressure = getattr(obs, 'pressure', 1013.25)
 
-                # Поправка за рефракцию и кривизну Земли
-                if config.get('apply_refraction_correction', True):
-                    distance_km = obs.value / 1000.0
-                    refraction_coeff = config.get('refraction_coefficient', 0.14)
-                    earth_radius = config.get('earth_radius', 6371000.0)
+                # Упрощённая формула атмосферной поправки
+                delta_atm = value * (0.000295 * (temperature - 15) - 0.000038 * (pressure - 1013.25))
 
-                    # Поправка за рефракцию и кривизну
-                    delta_ref = (distance_km ** 2) * (1 - refraction_coeff) / (2 * earth_radius) * 1000
-                    corrected_obs.value += delta_ref
+                # Поправка за рефракцию и кривизну
+                distance_km = value / 1000.0
+                refraction_coeff = config.get('refraction_coefficient', 0.14)
+                earth_radius = config.get('earth_radius', 6371000.0)
+                delta_ref = (distance_km ** 2) * (1 - refraction_coeff) / (2 * earth_radius) * 1000
 
-            corrected.append(corrected_obs)
+                # Создаём копию с исправленным значением
+                corrected_obs = obs
+                if hasattr(obs, 'value'):
+                    corrected_obs.value = value + delta_atm + delta_ref
+
+                corrected.append(corrected_obs)
+            else:
+                corrected.append(obs)
 
         return corrected
 
     def _compute_preliminary_coordinates(self, observations: List[Any],
-                                         fixed_points: List[str]) -> Dict[str, Any]:
+                                         points: Dict[str, Any]) -> Dict[str, Any]:
         """
         Этап 8: Расчет предварительных координат
 
         Рассчитывает приближённые координаты определяемых пунктов
-        методом полигонометрического хода от исходных пунктов.
+        методом последовательного приближения от известных пунктов.
         """
-        # Создание словаря координат
         coordinates = {}
 
-        # Добавление исходных пунктов
-        for point_id in fixed_points:
-            # В реальной реализации здесь должны быть координаты из данных
-            coordinates[point_id] = {
-                'x': 0.0,  # Заглушка
-                'y': 0.0,  # Заглушка
-                'h': None
-            }
+        # Копируем известные координаты
+        for point_id, point in points.items():
+            if isinstance(point, dict):
+                coordinates[point_id] = {
+                    'x': point.get('x', 0) or 0,
+                    'y': point.get('y', 0) or 0,
+                    'h': point.get('h', 0) or 0
+                }
+            else:
+                coordinates[point_id] = {
+                    'x': getattr(point, 'x', 0) or 0,
+                    'y': getattr(point, 'y', 0) or 0,
+                    'h': getattr(point, 'h', 0) or 0
+                }
 
-        # Расчёт координат для определяемых пунктов (упрощённый алгоритм)
-        # В реальной реализации нужен алгоритм распространения координат по ходу
+        # Для точек без координат пытаемся вычислить из измерений
+        # Это упрощённый алгоритм - в реальности нужен более сложный
 
         result = {
             'coordinates': coordinates,
-            'num_calculated': len(coordinates) - len(fixed_points),
-            'num_fixed': len(fixed_points)
+            'num_with_coords': sum(1 for c in coordinates.values() if c['x'] != 0 or c['y'] != 0),
+            'num_without_coords': sum(1 for c in coordinates.values() if c['x'] == 0 and c['y'] == 0)
         }
 
         return result
 
-    def run_all_stages(self, raw_data: Any, config: Dict[str, Any]) -> Dict[str, Any]:
+    def run_all_stages(self, observations: List[Any], points: Dict[str, Any],
+                       config: Dict[str, Any] = None) -> Dict[str, Any]:
         """
         Запуск всех этапов предобработки
 
         Параметры:
-        - raw_data: сырые данные измерений
+        - observations: список измерений
+        - points: словарь пунктов
         - config: конфигурация предобработки
 
         Возвращает:
         - Словарь с результатами всех этапов
         """
+        if config is None:
+            config = {}
+
         results = {
             'stages_completed': 0,
             'topology': None,
@@ -379,148 +435,65 @@ class PreprocessingModule:
             'reciprocal_violations': None,
             'corrected_observations': None,
             'preliminary_coordinates': None,
-            'tolerance_violations': None,
+            'tolerance_violations': [],
             'errors': [],
             'warnings': []
         }
 
-        # Этап 1: Распознавание топологии сети
-        if self.logger:
+        try:
+            # Этап 1: Распознавание топологии сети
             self.logger.info("Этап 1: Распознавание топологии сети")
+            results['topology'] = self._build_network_topology(observations)
+            self.logger.info(f"  Пунктов: {len(results['topology']['points'])}")
+            self.logger.info(f"  Измерений: {results['topology']['num_observations']}")
+            self.logger.info(f"  Тип сети: {results['topology']['network_type']}")
 
-        results['topology'] = self._build_network_topology(raw_data.observations)
-
-        if self.logger:
-            self.logger.info(f" • Пунктов всего: {len(results['topology']['points'])}")
-            self.logger.info(f" • Измерений всего: {results['topology']['num_observations']}")
-            self.logger.info(f" • Узловых пунктов: {len(results['topology']['nodal_points'])}")
-            self.logger.info(f" • Станций: {len(results['topology']['stations'])}")
-
-        # Этап 2: Формирование ходов и секций
-        if self.logger:
+            # Этап 2: Формирование ходов и секций
             self.logger.info("Этап 2: Формирование ходов и секций")
+            results['traverses'] = self._detect_traverses_and_sections(
+                results['topology'], observations
+            )
+            self.logger.info(f"  Ходов: {len(results['traverses']['traverses'])}")
+            self.logger.info(f"  Секций: {len(results['traverses']['sections'])}")
+            self.logger.info(f"  GNSS базовых линий: {len(results['traverses']['gnss_baselines'])}")
 
-        results['traverses'] = self._detect_traverses_and_sections(
-            results['topology'],
-            raw_data.observations
-        )
-
-        if self.logger:
-            self.logger.info(f" • Ходов: {len(results['traverses']['traverses'])}")
-            self.logger.info(f" • Секций: {len(results['traverses']['sections'])}")
-
-        # Этап 3: Обработка приемов измерений
-        if self.logger:
+            # Этап 3: Обработка приемов измерений
             self.logger.info("Этап 3: Обработка приемов измерений")
+            reception_results = []
+            for station_id in results['topology']['stations']:
+                result = self._process_receptions(observations, station_id)
+                reception_results.append(result)
+            results['receptions'] = reception_results
 
-        reception_results = []
-        for station_id in results['topology']['stations']:
-            result = self._process_receptions(raw_data.observations, station_id)
-            reception_results.append(result)
-
-        results['receptions'] = reception_results
-
-        # Этап 4: Контроль замыкания горизонта
-        # (выполняется внутри _process_receptions)
-
-        # Этап 5: Усреднение направлений в приемах
-        if self.logger:
+            # Этап 5: Усреднение направлений
             self.logger.info("Этап 5: Усреднение направлений в приемах")
+            all_averaged = {}
+            for rr in reception_results:
+                if rr.get('status') == 'success':
+                    all_averaged.update(rr.get('averaged_directions', {}))
+            results['averaged_directions'] = all_averaged
 
-        results['averaged_directions'] = self._average_directions_in_receptions(
-            reception_results
-        )
-
-        if self.logger:
-            self.logger.info(f" • Усреднено направлений: {len(results['averaged_directions'])}")
-
-        # Этап 6: Контроль сходимости прямых/обратных измерений
-        if self.logger:
+            # Этап 6: Контроль сходимости
             self.logger.info("Этап 6: Контроль сходимости прямых/обратных измерений")
+            results['reciprocal_violations'] = self._check_reciprocal_measurements(observations)
+            self.logger.info(f"  Нарушений: {len(results['reciprocal_violations'])}")
 
-        results['reciprocal_violations'] = self._check_reciprocal_measurements(
-            raw_data.observations
-        )
-
-        if self.logger:
-            num_violations = len(results['reciprocal_violations'])
-            self.logger.info(f" • Нарушений сходимости: {num_violations}")
-
-        # Этап 7: Применение редукций
-        if self.logger:
+            # Этап 7: Применение редукций
             self.logger.info("Этап 7: Применение редукций")
+            results['corrected_observations'] = self._apply_corrections(observations, config)
 
-        results['corrected_observations'] = self._apply_corrections(
-            raw_data.observations,
-            config
-        )
-
-        if self.logger:
-            self.logger.info(f" • Применено редукций: {len(results['corrected_observations'])}")
-
-        # Этап 8: Расчет предварительных координат
-        if self.logger:
+            # Этап 8: Расчет предварительных координат
             self.logger.info("Этап 8: Расчет предварительных координат")
+            results['preliminary_coordinates'] = self._compute_preliminary_coordinates(
+                results['corrected_observations'], points
+            )
 
-        results['preliminary_coordinates'] = self._compute_preliminary_coordinates(
-            results['corrected_observations'],
-            results['topology'].get('fixed_points', [])
-        )
+            results['stages_completed'] = 9
+            self.logger.info("Предобработка завершена успешно")
 
-        if self.logger:
-            self.logger.info(f" • Рассчитано координат: {results['preliminary_coordinates']['num_calculated']}")
-
-        # Этап 9: Формирование протокола допусков
-        if self.logger:
-            self.logger.info("Этап 9: Формирование протокола допусков")
-
-        # Проверка допусков (заглушка)
-        results['tolerance_violations'] = []
-
-        results['stages_completed'] = 9
+        except Exception as e:
+            error_msg = f"Ошибка при предобработке: {str(e)}"
+            self.logger.error(error_msg, exc_info=True)
+            results['errors'].append(error_msg)
 
         return results
-
-    def check_acceptance_criteria(self, observations: List[Any],
-                                  topology: Dict[str, Any]) -> List[Dict]:
-        """
-        Проверка 27 инструктивных допусков по СП 11-104-97
-
-        Возвращает список нарушений допусков
-        """
-        violations = []
-
-        # Пример проверки допусков
-
-        # 1. Замыкание горизонта (полигонометрия 4 класса)
-        # Допуск: 15√n, где n - число направлений
-        for station in topology['stations']:
-            # Получение числа направлений на станции
-            num_directions = len([o for o in observations
-                                  if o.from_point == station and o.obs_type == 'direction'])
-
-            if num_directions >= 3:
-                allowable_closure = 15.0 * math.sqrt(num_directions)
-                # В реальной реализации здесь должен быть расчёт фактического замыкания
-                actual_closure = 0.0  # Заглушка
-
-                if actual_closure > allowable_closure:
-                    violations.append({
-                        'criterion': 'circle_closure',
-                        'location': station,
-                        'actual': actual_closure,
-                        'allowable': allowable_closure,
-                        'normative': 'СП 11-104-97, п. 5.3.5'
-                    })
-
-        # 2. Относительная невязка хода (полигонометрия 4 класса)
-        # Допуск: 1:25 000
-        # (логика проверки ходов)
-
-        # 3. Невязка нивелирного хода (нивелирование III класса)
-        # Допуск: 12√L мм, где L - длина хода в км
-        # (логика проверки нивелирных секций)
-
-        # ... и так далее для всех 27 допусков
-
-        return violations

@@ -1644,6 +1644,14 @@ class MainWindow(QMainWindow):
         traverses = preprocessing_result.get('traverses', [])
         if traverses:
             for i, traverse in enumerate(traverses):
+                # Защита от некорректного типа данных (строка вместо словаря)
+                if isinstance(traverse, str):
+                    logger.warning(f"Некорректный формат хода {i}: ожидается dict, получена строка '{traverse}'")
+                    continue
+                if not isinstance(traverse, dict):
+                    logger.warning(f"Некорректный тип хода {i}: {type(traverse)}")
+                    continue
+                    
                 stations = traverse.get('stations', [])
                 num_angles = traverse.get('num_angles', 0)
                 num_distances = traverse.get('num_distances', 0)
@@ -1676,6 +1684,14 @@ class MainWindow(QMainWindow):
         sections = preprocessing_result.get('sections', [])
         if sections:
             for i, section in enumerate(sections):
+                # Защита от некорректного типа данных (строка вместо словаря)
+                if isinstance(section, str):
+                    logger.warning(f"Некорректный формат секции {i}: ожидается dict, получена строка '{section}'")
+                    continue
+                if not isinstance(section, dict):
+                    logger.warning(f"Некорректный тип секции {i}: {type(section)}")
+                    continue
+                    
                 stations = section.get('stations', [])
                 num_height_diffs = section.get('num_height_diffs', 0)
                 total_elev_diff = section.get('total_elevation_diff', 0)
@@ -1707,6 +1723,14 @@ class MainWindow(QMainWindow):
         baselines = preprocessing_result.get('gnss_baselines', [])
         if baselines:
             for i, bl in enumerate(baselines):
+                # Защита от некорректного типа данных (строка вместо словаря)
+                if isinstance(bl, str):
+                    logger.warning(f"Некорректный формат базовой линии {i}: ожидается dict, получена строка '{bl}'")
+                    continue
+                if not isinstance(bl, dict):
+                    logger.warning(f"Некорректный тип базовой линии {i}: {type(bl)}")
+                    continue
+                    
                 from_st = bl.get('from_station', '?')
                 to_st = bl.get('to_station', '?')
                 dx = bl.get('dx', 0)

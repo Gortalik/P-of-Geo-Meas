@@ -16,7 +16,7 @@
 """
 
 import numpy as np
-from typing import List, Dict, Any, Tuple, Optional
+from typing import List, Dict, Any, Tuple, Optional, Union
 from collections import defaultdict
 from datetime import datetime
 import math
@@ -375,7 +375,7 @@ class PreprocessingModule:
         return corrected
 
     def _compute_preliminary_coordinates(self, observations: List[Any],
-                                         points: Dict[str, Any]) -> Dict[str, Any]:
+                                         points: Optional[Union[List[Dict[str, Any]], Dict[str, Any]]]) -> Dict[str, Any]:
         """
         Этап 8: Расчет предварительных координат
 
@@ -384,20 +384,36 @@ class PreprocessingModule:
         """
         coordinates = {}
 
-        # Копируем известные координаты
-        for point_id, point in points.items():
-            if isinstance(point, dict):
-                coordinates[point_id] = {
-                    'x': point.get('x', 0) or 0,
-                    'y': point.get('y', 0) or 0,
-                    'h': point.get('h', 0) or 0
-                }
-            else:
-                coordinates[point_id] = {
-                    'x': getattr(point, 'x', 0) or 0,
-                    'y': getattr(point, 'y', 0) or 0,
-                    'h': getattr(point, 'h', 0) or 0
-                }
+        # Проверяем, что points не None
+        if points is None:
+            points = []
+
+        # Обрабатываем как список или словарь
+        if isinstance(points, list):
+            # points - список словарей
+            for point in points:
+                if isinstance(point, dict):
+                    point_id = point.get('name') or point.get('point_id', 'unknown')
+                    coordinates[point_id] = {
+                        'x': point.get('x', 0) or 0,
+                        'y': point.get('y', 0) or 0,
+                        'h': point.get('h', 0) or 0
+                    }
+        else:
+            # points - словарь
+            for point_id, point in points.items():
+                if isinstance(point, dict):
+                    coordinates[point_id] = {
+                        'x': point.get('x', 0) or 0,
+                        'y': point.get('y', 0) or 0,
+                        'h': point.get('h', 0) or 0
+                    }
+                else:
+                    coordinates[point_id] = {
+                        'x': getattr(point, 'x', 0) or 0,
+                        'y': getattr(point, 'y', 0) or 0,
+                        'h': getattr(point, 'h', 0) or 0
+                    }
 
         # Для точек без координат пытаемся вычислить из измерений
         # Это упрощённый алгоритм - в реальности нужен более сложный
@@ -410,8 +426,8 @@ class PreprocessingModule:
 
         return result
 
-    def run_all_stages(self, observations: List[Any], points: Dict[str, Any],
-                       config: Dict[str, Any] = None) -> Dict[str, Any]:
+    def run_all_stages(self, observations: List[Any], points: Optional[Union[List[Dict[str, Any]], Dict[str, Any]]] = None,
+                       config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         Запуск всех этапов предобработки
 
@@ -497,3 +513,23 @@ class PreprocessingModule:
             results['errors'].append(error_msg)
 
         return results
+
+    def run_preprocessing(self, observations: List[Any], points: Optional[Union[List[Dict[str, Any]], Dict[str, Any]]] = None,
+                          config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """
+        Упрощённый запуск предобработки для совместимости с GUI
+        
+        Параметры:
+        - observations: список измерений
+        - points: словарь пунктов (опционально)
+        - config: конфигурация (опционально)
+        
+        Возвращает:
+        - Словарь с результатами предобработки
+        """
+        if points is None:
+            points = {}
+        if config is None:
+            config = {}
+        
+        return self.run_all_stages(observations, points, config)

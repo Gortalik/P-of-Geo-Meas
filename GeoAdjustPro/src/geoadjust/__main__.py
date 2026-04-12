@@ -221,12 +221,15 @@ def main():
                 main_window = MainWindow(config)
                 main_window.current_project = project
                 
+                # Закрываем приветственный диалог после успешного создания
+                welcome_dialog.accept()
+                
                 logger.info("Новый проект создан и отображён в главном окне")
                 
             except Exception as e:
                 logger.error(f"Ошибка создания проекта: {e}", exc_info=True)
                 QMessageBox.critical(
-                    None,
+                    welcome_dialog,
                     "Ошибка создания проекта",
                     f"Не удалось создать проект:\n{str(e)}"
                 )
@@ -237,47 +240,54 @@ def main():
             # Используем getExistingDirectory для выбора папки .gad
             # Так как проект - это директория с расширением .gad
             dir_path = QFileDialog.getExistingDirectory(
-                None,
+                welcome_dialog,  # Передаём parent для правильного модального поведения
                 "Открыть проект (выберите папку .gad)",
                 str(Path.home()),
                 QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks
             )
             
-            if dir_path:
-                project_path = Path(dir_path)
-                # Проверяем, что выбранная директория имеет расширение .gad или содержит project.gadproj
-                if not (project_path.suffix == '.gad' or (project_path / 'project.gadproj').exists()):
-                    QMessageBox.warning(
-                        None,
-                        "Неверный формат проекта",
-                        "Выбранная папка не является проектом P-of-Geo-Meas.\n"
-                        "Проект должен быть папкой с расширением .gad и содержать файл project.gadproj."
-                    )
-                    return
+            # Если пользователь отменил выбор (нажал Cancel или закрыл диалог) - ничего не делаем
+            # Оставляем приветственный диалог открытым
+            if not dir_path:
+                return
+            
+            project_path = Path(dir_path)
+            # Проверяем, что выбранная директория имеет расширение .gad или содержит project.gadproj
+            if not (project_path.suffix == '.gad' or (project_path / 'project.gadproj').exists()):
+                QMessageBox.warning(
+                    welcome_dialog,
+                    "Неверный формат проекта",
+                    "Выбранная папка не является проектом P-of-Geo-Meas.\n"
+                    "Проект должен быть папкой с расширением .gad и содержать файл project.gadproj."
+                )
+                return
+            
+            try:
+                project = project_manager.open_project(project_path)
                 
-                try:
-                    project = project_manager.open_project(project_path)
-                    
-                    # Создание главного окна с проектом
-                    config = MainWindowConfig(
-                        interface_type=InterfaceType.RIBBON,
-                        window_title=f"P-of-Geo-Meas • Проект: {project.name}",
-                        window_size=(1600, 900),
-                        window_state="maximized",
-                        theme="light"
-                    )
-                    main_window = MainWindow(config)
-                    main_window.current_project = project
-                    
-                    logger.info(f"Проект открыт: {dir_path}")
-                    
-                except Exception as e:
-                    logger.error(f"Ошибка открытия проекта: {e}", exc_info=True)
-                    QMessageBox.critical(
-                        None,
-                        "Ошибка открытия проекта",
-                        f"Не удалось открыть проект:\n{str(e)}"
-                    )
+                # Создание главного окна с проектом
+                config = MainWindowConfig(
+                    interface_type=InterfaceType.RIBBON,
+                    window_title=f"P-of-Geo-Meas • Проект: {project.name}",
+                    window_size=(1600, 900),
+                    window_state="maximized",
+                    theme="light"
+                )
+                main_window = MainWindow(config)
+                main_window.current_project = project
+                
+                # Закрываем приветственный диалог после успешного открытия
+                welcome_dialog.accept()
+                
+                logger.info(f"Проект открыт: {dir_path}")
+                
+            except Exception as e:
+                logger.error(f"Ошибка открытия проекта: {e}", exc_info=True)
+                QMessageBox.critical(
+                    welcome_dialog,
+                    "Ошибка открытия проекта",
+                    f"Не удалось открыть проект:\n{str(e)}"
+                )
         
         def open_recent_project(project_path):
             """Открытие недавнего проекта"""
@@ -296,12 +306,15 @@ def main():
                 main_window = MainWindow(config)
                 main_window.current_project = project
                 
+                # Закрываем приветственный диалог после успешного открытия
+                welcome_dialog.accept()
+                
                 logger.info(f"Недавний проект открыт: {project_path}")
                 
             except Exception as e:
                 logger.error(f"Ошибка открытия недавнего проекта: {e}", exc_info=True)
                 QMessageBox.critical(
-                    None,
+                    welcome_dialog,
                     "Ошибка открытия проекта",
                     f"Не удалось открыть проект:\n{str(e)}"
                 )

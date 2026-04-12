@@ -184,12 +184,12 @@ class WelcomeDialog(QDialog):
     def _on_new_project(self):
         """Обработчик создания нового проекта"""
         self.new_project_requested.emit()
-        self.accept()
+        # Не закрываем диалог сразу - это сделает обработчик сигнала
     
     def _on_open_project(self):
         """Обработчик открытия проекта"""
         self.open_project_requested.emit()
-        self.accept()
+        # Не закрываем диалог сразу - это сделает обработчик сигнала после выбора файла
     
     def _on_recent_project(self, project_path):
         """Обработчик открытия недавнего проекта"""

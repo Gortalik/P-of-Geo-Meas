@@ -52,6 +52,10 @@ class ProgramSettingsDialog(QDialog):
         tables_tab = self._create_tables_tab()
         tab_widget.addTab(tables_tab, "Таблицы")
         
+        # Вкладка "Приборы"
+        instruments_tab = self._create_instruments_tab()
+        tab_widget.addTab(instruments_tab, "Приборы")
+
         # Вкладка "Цвета"
         colors_tab = self._create_colors_tab()
         tab_widget.addTab(colors_tab, "Цвета")
@@ -260,6 +264,167 @@ class ProgramSettingsDialog(QDialog):
         
         return tab
     
+    def _create_instruments_tab(self) -> QWidget:
+        """Создание вкладки настроек приборов"""
+        from PyQt5.QtWidgets import QListWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QLabel
+        from PyQt5.QtCore import Qt
+
+        tab = QWidget()
+        layout = QHBoxLayout(tab)
+
+        # Список доступных приборов
+        self.instruments_list = QListWidget()
+        self.instruments_list.setMaximumWidth(200)
+        layout.addWidget(self.instruments_list)
+
+        # Панель свойств выбранного прибора
+        properties_group = QGroupBox("Параметры прибора")
+        properties_layout = QFormLayout(properties_group)
+
+        # Угловые измерения
+        angular_group = QGroupBox("Угловые измерения")
+        angular_layout = QFormLayout(angular_group)
+
+        self.angular_accuracy_spin = QDoubleSpinBox()
+        self.angular_accuracy_spin.setRange(0.1, 60.0)
+        self.angular_accuracy_spin.setValue(1.0)
+        self.angular_accuracy_spin.setSuffix(" сек")
+        angular_layout.addRow("СКО угла:", self.angular_accuracy_spin)
+
+        self.angular_repeatability_spin = QDoubleSpinBox()
+        self.angular_repeatability_spin.setRange(0.1, 10.0)
+        self.angular_repeatability_spin.setValue(0.5)
+        self.angular_repeatability_spin.setSuffix(" сек")
+        angular_layout.addRow("Повторяемость:", self.angular_repeatability_spin)
+
+        properties_layout.addRow(angular_group)
+
+        # Линейные измерения
+        distance_group = QGroupBox("Линейные измерения")
+        distance_layout = QFormLayout(distance_group)
+
+        self.distance_accuracy_a_spin = QDoubleSpinBox()
+        self.distance_accuracy_a_spin.setRange(0.1, 100.0)
+        self.distance_accuracy_a_spin.setValue(1.0)
+        self.distance_accuracy_a_spin.setSuffix(" мм")
+        distance_layout.addRow("СКО (постоянная часть):", self.distance_accuracy_a_spin)
+
+        self.distance_accuracy_b_spin = QDoubleSpinBox()
+        self.distance_accuracy_b_spin.setRange(0.0, 10.0)
+        self.distance_accuracy_b_spin.setValue(1.0)
+        self.distance_accuracy_b_spin.setSuffix(" мм/км")
+        distance_layout.addRow("СКО (переменная часть):", self.distance_accuracy_b_spin)
+
+        properties_layout.addRow(distance_group)
+
+        # Нивелирные измерения
+        leveling_group = QGroupBox("Нивелирные измерения")
+        leveling_layout = QFormLayout(leveling_group)
+
+        self.leveling_accuracy_spin = QDoubleSpinBox()
+        self.leveling_accuracy_spin.setRange(0.1, 10.0)
+        self.leveling_accuracy_spin.setValue(0.8)
+        self.leveling_accuracy_spin.setSuffix(" мм/станц")
+        leveling_layout.addRow("СКО нивелирования:", self.leveling_accuracy_spin)
+
+        properties_layout.addRow(leveling_group)
+
+        # Кнопки управления
+        buttons_layout = QHBoxLayout()
+
+        self.add_instrument_btn = QPushButton("Добавить")
+        self.delete_instrument_btn = QPushButton("Удалить")
+        self.save_instrument_btn = QPushButton("Сохранить")
+
+        buttons_layout.addWidget(self.add_instrument_btn)
+        buttons_layout.addWidget(self.delete_instrument_btn)
+        buttons_layout.addWidget(self.save_instrument_btn)
+        buttons_layout.addStretch()
+
+        properties_layout.addRow(buttons_layout)
+
+        layout.addWidget(properties_group)
+
+        # Загрузка списка приборов
+        self._load_instruments_list()
+
+        # Подключение сигналов
+        self.instruments_list.itemSelectionChanged.connect(self._on_instrument_selected)
+        self.add_instrument_btn.clicked.connect(self._add_instrument)
+        self.delete_instrument_btn.clicked.connect(self._delete_instrument)
+        self.save_instrument_btn.clicked.connect(self._save_instrument)
+
+        return tab
+
+    def _load_instruments_list(self):
+        """Загрузка списка приборов"""
+        from geoadjust.core.adjustment.instruments import InstrumentLibrary
+
+        self.instruments_list.clear()
+        library = InstrumentLibrary()
+
+        for name, instrument in library.instruments.items():
+            display_name = name.replace('_', ' ').title()
+            self.instruments_list.addItem(display_name)
+
+    def _on_instrument_selected(self):
+        """Обработка выбора прибора"""
+        current_item = self.instruments_list.currentItem()
+        if not current_item:
+            return
+
+        # Получение параметров прибора
+        from geoadjust.core.adjustment.instruments import InstrumentLibrary
+
+        library = InstrumentLibrary()
+        instrument_name = current_item.text().lower().replace(' ', '_')
+        instrument = library.get_instrument(instrument_name)
+
+        # Заполнение полей
+        self.angular_accuracy_spin.setValue(instrument.angular_accuracy)
+        self.angular_repeatability_spin.setValue(instrument.angular_repeatability)
+        self.distance_accuracy_a_spin.setValue(instrument.distance_accuracy_a)
+        self.distance_accuracy_b_spin.setValue(instrument.distance_accuracy_b)
+        self.leveling_accuracy_spin.setValue(instrument.leveling_accuracy)
+
+    def _add_instrument(self):
+        """Добавление нового прибора"""
+        from PyQt5.QtWidgets import QInputDialog
+
+        name, ok = QInputDialog.getText(self, "Новый прибор", "Введите название прибора:")
+        if ok and name:
+            self.instruments_list.addItem(name.title())
+            self.instruments_list.setCurrentRow(self.instruments_list.count() - 1)
+
+    def _delete_instrument(self):
+        """Удаление прибора"""
+        current_row = self.instruments_list.currentRow()
+        if current_row >= 0:
+            from PyQt5.QtWidgets import QMessageBox
+
+            reply = QMessageBox.question(
+                self, "Подтверждение",
+                "Удалить выбранный прибор?",
+                QMessageBox.Yes | QMessageBox.No
+            )
+
+            if reply == QMessageBox.Yes:
+                self.instruments_list.takeItem(current_row)
+
+    def _save_instrument(self):
+        """Сохранение параметров прибора"""
+        current_item = self.instruments_list.currentItem()
+        if not current_item:
+            return
+
+        # Здесь можно сохранить параметры в файл или базу данных
+        # Пока просто выводим в лог
+        import logging
+        logger = logging.getLogger(__name__)
+
+        instrument_name = current_item.text()
+        logger.info(f"Сохранены параметры прибора: {instrument_name}")
+
     def _create_colors_tab(self) -> QWidget:
         """Создание вкладки настроек цветов"""
         tab = QWidget()

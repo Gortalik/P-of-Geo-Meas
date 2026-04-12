@@ -26,6 +26,8 @@ from enum import Enum
 import logging
 import chardet
 
+from geoadjust.core.network.models import Station, StationGroup
+
 logger = logging.getLogger(__name__)
 
 
@@ -241,50 +243,96 @@ class SDRParser:
             if not target:
                 return None
             
-            # Добавляем горизонтальное направление
-            if h_angle is not None:
-                obs = SDRObservation(
-                    obs_type='direction',
-                    from_point=self.current_station.point_id,
-                    to_point=target,
-                    value=h_angle,
-                    instrument_height=self.current_station.instrument_height,
-                    target_height=self.current_setup.get('target_height'),
-                    face_position=self.current_face,
-                    line_number=line_num,
-                    raw_data=line
-                )
-                self.observations.append(obs)
+            # Создаём уникальный ключ для станции+цели+полуприёма
+            # Это позволяет объединить горизонтальный угол, вертикальный угол и расстояние
+            target_key = (station, target, self.current_face)
             
-            # Добавляем вертикальный угол
-            if vert_angle is not None:
-                obs = SDRObservation(
-                    obs_type='zenith_angle',
-                    from_point=self.current_station.point_id,
-                    to_point=target,
-                    value=vert_angle,
-                    instrument_height=self.current_station.instrument_height,
-                    target_height=self.current_setup.get('target_height'),
-                    face_position=self.current_face,
-                    line_number=line_num,
-                    raw_data=line
-                )
-                self.observations.append(obs)
+            # Проверяем, есть ли уже измерение для этой станции+цели+полуприёма
+            existing_obs = None
+            for obs in self.observations:
+                if (obs.from_point == station and 
+                    obs.to_point == target and 
+                    obs.face_position == self.current_face):
+                    existing_obs = obs
+                    break
             
-            # Добавляем наклонное расстояние
-            if slope_dist is not None and slope_dist > 0:
-                obs = SDRObservation(
-                    obs_type='slope_distance',
-                    from_point=self.current_station.point_id,
-                    to_point=target,
-                    value=slope_dist,
-                    instrument_height=self.current_station.instrument_height,
-                    target_height=self.current_setup.get('target_height'),
-                    face_position=self.current_face,
-                    line_number=line_num,
-                    raw_data=line
-                )
-                self.observations.append(obs)
+            # Обновляем существующее или создаём новое
+            if existing_obs:
+                if h_angle is not None:
+                    existing_obs.value = h_angle
+                if vert_angle is not None:
+                    # Добавляем как отдельное измерение для вертикального угла
+                    obs_vert = SDRObservation(
+                        obs_type='zenith_angle',
+                        from_point=station,
+                        to_point=target,
+                        value=vert_angle,
+                        instrument_height=self.current_station.instrument_height,
+                        target_height=self.current_setup.get('target_height'),
+                        face_position=self.current_face,
+                        line_number=line_num,
+                        raw_data=line
+                    )
+                    self.observations.append(obs_vert)
+                if slope_dist is not None and slope_dist > 0:
+                    # Добавляем как отдельное измерение для расстояния
+                    obs_dist = SDRObservation(
+                        obs_type='slope_distance',
+                        from_point=station,
+                        to_point=target,
+                        value=slope_dist,
+                        instrument_height=self.current_station.instrument_height,
+                        target_height=self.current_setup.get('target_height'),
+                        face_position=self.current_face,
+                        line_number=line_num,
+                        raw_data=line
+                    )
+                    self.observations.append(obs_dist)
+            else:
+                # Добавляем горизонтальное направление
+                if h_angle is not None:
+                    obs = SDRObservation(
+                        obs_type='direction',
+                        from_point=station,
+                        to_point=target,
+                        value=h_angle,
+                        instrument_height=self.current_station.instrument_height,
+                        target_height=self.current_setup.get('target_height'),
+                        face_position=self.current_face,
+                        line_number=line_num,
+                        raw_data=line
+                    )
+                    self.observations.append(obs)
+                
+                # Добавляем вертикальный угол
+                if vert_angle is not None:
+                    obs = SDRObservation(
+                        obs_type='zenith_angle',
+                        from_point=station,
+                        to_point=target,
+                        value=vert_angle,
+                        instrument_height=self.current_station.instrument_height,
+                        target_height=self.current_setup.get('target_height'),
+                        face_position=self.current_face,
+                        line_number=line_num,
+                        raw_data=line
+                    )
+                    self.observations.append(obs)
+                
+                # Добавляем наклонное расстояние
+                if slope_dist is not None and slope_dist > 0:
+                    obs = SDRObservation(
+                        obs_type='slope_distance',
+                        from_point=station,
+                        to_point=target,
+                        value=slope_dist,
+                        instrument_height=self.current_station.instrument_height,
+                        target_height=self.current_setup.get('target_height'),
+                        face_position=self.current_face,
+                        line_number=line_num,
+                        raw_data=line
+                    )
+                    self.observations.append(obs)
             
             # Добавляем точку
             if target not in self.points:
@@ -311,6 +359,8 @@ class SDRParser:
         logger.info(f"Парсинг файла SDR")
         logger.info(f"Кодировка: {self.encoding}")
         logger.info(f"Строк в файле: {len(lines)}")
+
+        self._reset_state()
 
         for line_num, line in enumerate(lines, 1):
             line = line.rstrip()
@@ -364,6 +414,82 @@ class SDRParser:
 
         logger.info(f"Парсинг завершён: {result['num_observations']} измерений, {result['num_points']} пунктов")
         return result
+
+    def _reset_state(self):
+        """Сброс состояния парсера"""
+        self.current_station = None
+        self.current_setup = {}
+        self.current_face = "NONE"
+        self.observations = []
+        self.points = {}
+
+    def parse_to_stations(self, file_path: Path) -> List[Station]:
+        """Парсинг файла с созданием объектов Station для двухэтапной обработки"""
+        result = self.parse(file_path)
+        
+        stations = []
+        station_observations = {}
+        current_station_id = None
+        setup_counter = 0
+        
+        for obs in result.get('observations', []):
+            st_point = obs.from_point
+            
+            if st_point != current_station_id:
+                if current_station_id and current_station_id in station_observations:
+                    stations.append(Station(
+                        station_id=f"{current_station_id}_{setup_counter:03d}",
+                        point_name=current_station_id,
+                        instrument_height=self.current_setup.get('instrument_height', 0.0),
+                        target_height=self.current_setup.get('target_height', 0.0),
+                        orientation_angle=self.current_setup.get('orientation_angle'),
+                        observations=station_observations[current_station_id],
+                        instrument_name=result.get('job_name', 'SDR')
+                    ))
+                
+                setup_counter += 1
+                current_station_id = st_point
+                station_observations[st_point] = []
+            
+            from geoadjust.core.network.models import Observation as GeoObservation
+            geo_obs = GeoObservation(
+                obs_id=f"{st_point}_{obs.to_point}_{len(station_observations[st_point])}",
+                obs_type=obs.obs_type,
+                from_point=obs.from_point,
+                to_point=obs.to_point,
+                value=obs.value,
+                instrument_name=obs.instrument_height or '',
+                sigma_apriori=1.0,
+                instrument_height=obs.instrument_height,
+                target_height=obs.target_height or 0.0,
+                circle_position=obs.face_position
+            )
+            station_observations[st_point].append(geo_obs)
+        
+        if current_station_id and current_station_id in station_observations:
+            stations.append(Station(
+                station_id=f"{current_station_id}_{setup_counter:03d}",
+                point_name=current_station_id,
+                instrument_height=self.current_setup.get('instrument_height', 0.0),
+                target_height=self.current_setup.get('target_height', 0.0),
+                orientation_angle=self.current_setup.get('orientation_angle'),
+                observations=station_observations[current_station_id],
+                instrument_name=result.get('job_name', 'SDR')
+            ))
+        
+        return stations
+
+    def group_stations_by_point(self, stations: List[Station]) -> Dict[str, StationGroup]:
+        """Группировка станций по пунктам"""
+        from geoadjust.core.network.models import StationGroup
+        
+        groups = {}
+        for station in stations:
+            if station.point_name not in groups:
+                groups[station.point_name] = StationGroup(point_name=station.point_name)
+            groups[station.point_name].add_station(station)
+        
+        return groups
 
     def get_statistics(self) -> Dict[str, Any]:
         """Получение статистики"""

@@ -65,6 +65,10 @@ class MainWindow(QMainWindow):
         # Создание интеграции обработки
         self.processing_integration = None
         
+        # Защита от рекурсивных вызовов
+        self._updating_properties = False
+        self._refreshing_data = False
+        
         # Настройка окна
         self.setWindowTitle(self.config.window_title)
         self._load_icon()
@@ -273,7 +277,13 @@ class MainWindow(QMainWindow):
         self.traverses_dock_action.setChecked(True)
         self.traverses_dock_action.triggered.connect(self._toggle_traverses_dock)
         panels_menu.addAction(self.traverses_dock_action)
-        
+
+        self.stations_dock_action = QAction("Станции", self)
+        self.stations_dock_action.setCheckable(True)
+        self.stations_dock_action.setChecked(True)
+        self.stations_dock_action.triggered.connect(self._toggle_stations_dock)
+        panels_menu.addAction(self.stations_dock_action)
+
         panels_menu.addSeparator()
         
         self.log_dock_action = QAction("Журнал", self)
@@ -505,7 +515,17 @@ class MainWindow(QMainWindow):
         self.setCorner(Qt.BottomLeftCorner, Qt.LeftDockWidgetArea)
         self.setCorner(Qt.TopRightCorner, Qt.RightDockWidgetArea)
         self.setCorner(Qt.BottomRightCorner, Qt.RightDockWidgetArea)
-        
+
+        # Окно "Станции"
+        from .widgets.stations_widget import StationsDockContent
+        self.stations_dock = QDockWidget("Станции", self)
+        self.stations_dock.setObjectName("stationsDock")
+        self.stations_content = StationsDockContent(self)
+        self.stations_dock.setWidget(self.stations_content)
+        self.addDockWidget(Qt.LeftDockWidgetArea, self.stations_dock)
+        self.stations_dock.setMinimumWidth(250)
+        self.stations_dock.visibilityChanged.connect(self._on_stations_dock_visibility_changed)
+
         # Окно "Пункты ПВО"
         self.points_dock = PointsDockWidget("Пункты ПВО", self)
         self.points_dock.setObjectName("pointsDock")
@@ -562,8 +582,8 @@ class MainWindow(QMainWindow):
         
         # Настройка размеров док-виджетов при запуске
         self.resizeDocks(
-            [self.points_dock, self.observations_dock, self.traverses_dock, self.properties_dock],
-            [250, 250, 250, 250],
+            [self.stations_dock, self.points_dock, self.observations_dock, self.traverses_dock, self.properties_dock],
+            [200, 200, 250, 250, 250],
             Qt.Horizontal
         )
         
@@ -586,26 +606,52 @@ class MainWindow(QMainWindow):
             self.points_table.point_double_clicked.connect(self._on_point_selected)
             # Также подключаем сигнал выбора строки
             self.points_table.selectionModel().selectionChanged.connect(self._on_points_selection_changed)
-        
+
         # Сигналы от таблицы измерений
         if hasattr(self, 'observations_table'):
             # ObservationsTableWidget имеет внутреннюю таблицу
             obs_table = self.observations_table.table_view if hasattr(self.observations_table, 'table_view') else self.observations_table
             if hasattr(obs_table, 'selectionModel'):
                 obs_table.selectionModel().selectionChanged.connect(self._on_observations_selection_changed)
+
+        # Сигналы от виджета станций
+        if hasattr(self, 'stations_content'):
+            self.stations_content.station_selected.connect(self._on_station_selected)
     
     def _on_point_selected(self, point_id: str):
         """Обработка выбора пункта"""
         self._show_point_properties(point_id)
+
+    def _on_station_selected(self, session_id: str):
+        """Обработка выбора станции"""
+        if not session_id:
+            # Сброс фильтра - показать все измерения
+            if hasattr(self, 'observations_table'):
+                self.observations_table.filter_by_station_session(None)
+            self.statusBar().showMessage("Показаны все измерения", 2000)
+            return
+
+        # Фильтрация измерений по выбранной станции
+        if hasattr(self, 'observations_table'):
+            self.observations_table.filter_by_station_session(session_id)
+
+        # Обновление статуса
+        station_name = session_id.split('_S')[0] if '_S' in session_id else session_id
+        self.statusBar().showMessage(f"Показаны измерения станции {station_name}", 3000)
+
+        logger.info(f"Выбрана станция: {session_id}")
     
     def _on_points_selection_changed(self, selected, deselected):
         """Обработка изменения выбора в таблице пунктов"""
+        if self._updating_properties or not hasattr(self, 'properties_widget'):
+            return
+        
         indexes = self.points_table.selectionModel().selectedRows()
         if indexes:
-            # Берём первый выбранный пункт
             row = indexes[0].row()
-            model = self.points_table.model()
-            if model:
+            # Используем model() метод QTableView
+            model = self.points_table.model
+            if model and hasattr(model, 'index'):
                 point_id = model.index(row, 0).data()
                 if point_id:
                     self._show_point_properties(point_id)
@@ -630,35 +676,72 @@ class MainWindow(QMainWindow):
     
     def _show_point_properties(self, point_id: str):
         """Отображение свойств пункта"""
-        if not self.current_project:
+        if not self.current_project or self._updating_properties:
             return
         
-        # Поиск пункта в проекте
-        points = self.current_project.get_points()
-        for point in points:
-            if isinstance(point, dict) and point.get('id') == point_id or point.get('name') == point_id:
-                self.properties_widget.set_point_properties(point_id, point)
-                return
+        self._updating_properties = True
         
-        # Если не нашли в проекте, пробуем получить из модели
-        model = self.points_table.model()
-        if model:
-            for row in range(model.rowCount()):
-                item_id = model.index(row, 0).data()
-                if item_id == point_id:
-                    properties = {
-                        'id': point_id,
-                        'name': model.index(row, 1).data() or point_id,
-                        'coord_type': model.index(row, 2).data() or 'FREE',
-                        'x': float(model.index(row, 3).data() or 0),
-                        'y': float(model.index(row, 4).data() or 0),
-                        'h': float(model.index(row, 5).data() or 0),
-                        'normative_class': '',
-                        'sigma_x': 0.0,
-                        'sigma_y': 0.0
-                    }
-                    self.properties_widget.set_point_properties(point_id, properties)
+        try:
+            # Поиск пункта в проекте
+            points = self.current_project.get_points()
+            for point in points:
+                if isinstance(point, dict) and (point.get('id') == point_id or point.get('name') == point_id):
+                    self.properties_widget.set_point_properties(point_id, point)
                     return
+            
+            # Если не нашли в проекте, пробуем получить из модели
+            model = self.points_table.model()
+            if model:
+                for row in range(model.rowCount()):
+                    item_id = model.index(row, 0).data()
+                    if item_id == point_id:
+                        properties = {
+                            'id': point_id,
+                            'name': model.index(row, 1).data() or point_id,
+                            'coord_type': model.index(row, 2).data() or 'FREE',
+                            'x': float(model.index(row, 3).data() or 0),
+                            'y': float(model.index(row, 4).data() or 0),
+                            'h': float(model.index(row, 5).data() or 0),
+                            'normative_class': '',
+                            'sigma_x': 0.0,
+                            'sigma_y': 0.0
+                        }
+                        self.properties_widget.set_point_properties(point_id, properties)
+                        return
+        finally:
+            self._updating_properties = False
+        
+        self._updating_properties = True
+        
+        try:
+            # Поиск пункта в проекте
+            points = self.current_project.get_points()
+            for point in points:
+                if isinstance(point, dict) and (point.get('id') == point_id or point.get('name') == point_id):
+                    self.properties_widget.set_point_properties(point_id, point)
+                    return
+            
+            # Если не нашли в проекте, пробуем получить из модели
+            model = self.points_table.model()
+            if model:
+                for row in range(model.rowCount()):
+                    item_id = model.index(row, 0).data()
+                    if item_id == point_id:
+                        properties = {
+                            'id': point_id,
+                            'name': model.index(row, 1).data() or point_id,
+                            'coord_type': model.index(row, 2).data() or 'FREE',
+                            'x': float(model.index(row, 3).data() or 0),
+                            'y': float(model.index(row, 4).data() or 0),
+                            'h': float(model.index(row, 5).data() or 0),
+                            'normative_class': '',
+                            'sigma_x': 0.0,
+                            'sigma_y': 0.0
+                        }
+                        self.properties_widget.set_point_properties(point_id, properties)
+                        return
+        finally:
+            self._updating_properties = False
     
     def _show_observation_properties(self, obs_id: str):
         """Отображение свойств измерения"""
@@ -941,7 +1024,144 @@ class MainWindow(QMainWindow):
     
     def _run_preprocessing(self):
         """Запуск предобработки"""
-        logger.info("Запуск предобработки")
+        logger.info("=" * 60)
+        logger.info("ЗАПУСК ПРЕДОБРАБОТКИ ДАННЫХ")
+        logger.info("=" * 60)
+
+        if not self.current_project:
+            logger.warning("Нет открытого проекта для предобработки")
+            QMessageBox.warning(self, "Предупреждение", "Сначала откройте проект")
+            return
+
+        try:
+            # Получение данных проекта
+            observations = self.current_project.get_observations()
+            points = self.current_project.get_points()
+
+            if not observations:
+                logger.warning("В проекте нет измерений")
+                QMessageBox.warning(self, "Предупреждение", "В проекте нет измерений")
+                return
+
+            self.mode_label.setText("Режим: предобработка")
+            self.statusBar().showMessage("Выполняется предобработка...", 0)
+            self.progress_bar.setVisible(True)
+            self.progress_bar.setRange(0, 100)
+            self.progress_bar.setValue(10)
+
+            # Создание модуля предобработки
+            from geoadjust.core.preprocessing.module import PreprocessingModule
+            preprocessor = PreprocessingModule()
+
+            # Конфигурация предобработки
+            config = {
+                'refraction_coefficient': 0.14,
+                'earth_radius': 6371000.0
+            }
+
+            # Запуск предобработки
+            logger.info("Запуск модуля предобработки...")
+            results = preprocessor.run_preprocessing(observations, points, config)
+
+            self.progress_bar.setValue(90)
+
+            # Обновление данных проекта
+            if results.get('corrected_observations'):
+                # Сохраняем исправленные измерения обратно в проект
+                corrected_obs = results['corrected_observations']
+                for i, obs in enumerate(corrected_obs):
+                    if i < len(observations):
+                        # Обновляем значения в оригинальных объектах
+                        if hasattr(observations[i], 'value'):
+                            observations[i].value = getattr(obs, 'value', observations[i].value)
+
+            # Обновление интерфейса
+            self._refresh_data_views()
+
+            # Отображение результатов
+            stages_completed = results.get('stages_completed', 0)
+            num_violations = len(results.get('reciprocal_violations', []))
+            num_errors = len(results.get('errors', []))
+
+            message = f"Предобработка завершена: {stages_completed}/9 этапов"
+            if num_violations > 0:
+                message += f", {num_violations} нарушений"
+            if num_errors > 0:
+                message += f", {num_errors} ошибок"
+
+            self.statusBar().showMessage(message, 5000)
+            self.progress_bar.setValue(100)
+
+            # Показать отчёт если есть проблемы
+            if num_violations > 0 or num_errors > 0:
+                self._show_preprocessing_report(results)
+
+            logger.info(f"Предобработка завершена: {stages_completed} этапов, {num_violations} нарушений")
+
+        except Exception as e:
+            logger.error(f"КРИТИЧЕСКАЯ ОШИБКА при предобработке: {e}", exc_info=True)
+            QMessageBox.critical(self, "Ошибка", f"Ошибка при предобработке:\n{str(e)}")
+            self.statusBar().showMessage("Ошибка предобработки", 3000)
+        finally:
+            self.mode_label.setText("Режим: ожидание")
+            self.progress_bar.setVisible(False)
+
+    def _show_preprocessing_report(self, results: Dict[str, Any]):
+        """Показать отчёт о предобработке"""
+        from PyQt5.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QDialogButtonBox
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Отчёт предобработки")
+        dialog.resize(600, 400)
+
+        layout = QVBoxLayout(dialog)
+
+        text_edit = QTextEdit()
+        text_edit.setReadOnly(True)
+
+        # Формирование отчёта
+        report = []
+        report.append("ОТЧЁТ ПРЕДОБРАБОТКИ ДАННЫХ")
+        report.append("=" * 50)
+
+        topology = results.get('topology', {})
+        if topology:
+            report.append("1. Топология сети:")
+            report.append(f"   Пунктов: {len(topology.get('points', []))}")
+            report.append(f"   Станций: {len(topology.get('stations', []))}")
+            report.append(f"   Измерений: {topology.get('num_observations', 0)}")
+            report.append(f"   Тип сети: {topology.get('network_type', 'unknown')}")
+
+        traverses = results.get('traverses', {})
+        if traverses:
+            report.append("\n2. Ходы и секции:")
+            report.append(f"   Тахеометрических ходов: {len(traverses.get('traverses', []))}")
+            report.append(f"   Нивелирных секций: {len(traverses.get('sections', []))}")
+            report.append(f"   GNSS базовых линий: {len(traverses.get('gnss_baselines', []))}")
+
+        violations = results.get('reciprocal_violations', [])
+        if violations:
+            report.append(f"\n3. Нарушения сходимости: {len(violations)}")
+            for v in violations[:5]:  # Показываем первые 5
+                pair = v.get('pair', ('', ''))
+                disc = v.get('discrepancy', 0)
+                allow = v.get('allowable', 0)
+                report.append(f"   {pair[0]}-{pair[1]}: {disc:.3f} > {allow:.3f}")
+
+        errors = results.get('errors', [])
+        if errors:
+            report.append(f"\n4. Ошибки: {len(errors)}")
+            for err in errors[:3]:
+                report.append(f"   {err}")
+
+        text_edit.setPlainText('\n'.join(report))
+        layout.addWidget(text_edit)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok)
+        button_box.accepted.connect(dialog.accept)
+        layout.addWidget(button_box)
+
+        dialog.exec_()
     
     def _adjust_classic(self):
         """Классическое МНК уравнивание"""
@@ -992,8 +1212,10 @@ class MainWindow(QMainWindow):
             logger.info("Установка моделей данных...")
             # Передаём данные проекта напрямую
             if hasattr(self, 'current_project') and self.current_project:
-                points = getattr(self.current_project, 'points', {})
-                observations = getattr(self.current_project, 'observations', [])
+                # Используем методы проекта для получения данных
+                points = self.current_project.get_points() if hasattr(self.current_project, 'get_points') else []
+                observations = self.current_project.get_observations() if hasattr(self.current_project, 'get_observations') else []
+                logger.info(f"Передаём в уравнивание: {len(points)} пунктов, {len(observations)} измерений")
                 self.processing_integration.set_project_data(points, observations)
             else:
                 # Передаём таблицы как fallback
@@ -1163,7 +1385,12 @@ class MainWindow(QMainWindow):
                     
                     # Обновление интерфейса
                     self._refresh_data_views()
-                    
+
+                    # Обновление станций, если есть данные о сессиях
+                    station_sessions = imported_data.get('station_sessions', [])
+                    if station_sessions:
+                        self._update_stations_view(station_sessions)
+
                     logger.info(f"Импортировано: {len(points)} пунктов, {len(observations)} измерений")
                     self.statusBar().showMessage(
                         f"Импортировано: {len(points)} пунктов, {len(observations)} измерений",
@@ -1343,22 +1570,30 @@ class MainWindow(QMainWindow):
         dialog.exec_()
     
     def _refresh_data_views(self):
-        """Обновление представлений данных"""
-        if not self.current_project:
-            return
-        
-        # Обновление таблиц
-        if hasattr(self, 'points_table'):
+        """Обновление всех представлений данных"""
+        if self.current_project:
+            # Обновление таблицы пунктов
             points = self.current_project.get_points()
-            self.points_table.update_data(points)
-        
-        if hasattr(self, 'observations_table'):
+            if points and hasattr(self, 'points_table'):
+                self.points_table.update_data(points)
+
+            # Обновление таблицы измерений
             observations = self.current_project.get_observations()
-            self.observations_table.update_data(observations)
-        
-        # Обновление плана
-        if hasattr(self, 'plan_view'):
-            self.plan_view.draw_network(self.current_project)
+            if observations and hasattr(self, 'observations_table'):
+                self.observations_table.update_data(observations)
+
+            # Обновление плана
+            if hasattr(self, 'plan_view'):
+                self.plan_view.draw_network(self.current_project)
+
+    def _update_stations_view(self, station_sessions: List[Dict[str, Any]]):
+        """Обновление представления станций"""
+        if hasattr(self, 'stations_content') and station_sessions:
+            self.stations_content.set_station_sessions(station_sessions)
+            logger.info(f"Обновлено представление станций: {len(station_sessions)} сессий")
+        elif hasattr(self, 'stations_dock') and hasattr(self.stations_dock, 'content'):
+            self.stations_dock.content.set_station_sessions(station_sessions)
+            logger.info(f"Обновлено представление станций: {len(station_sessions)} сессий")
         
         # Обновление дерева ходов и секций
         if hasattr(self, 'traverses_tree'):
@@ -1922,6 +2157,11 @@ class MainWindow(QMainWindow):
         )
     
     # Методы для переключения панелей
+    def _toggle_stations_dock(self, checked: bool):
+        """Показать/скрыть панель станций"""
+        if hasattr(self, 'stations_dock'):
+            self.stations_dock.setVisible(checked)
+
     def _toggle_points_dock(self, checked: bool):
         """Показать/скрыть панель пунктов ПВО"""
         if hasattr(self, 'points_dock'):
@@ -1948,6 +2188,11 @@ class MainWindow(QMainWindow):
             self.properties_dock.setVisible(checked)
     
     # Обработчики изменения видимости док-виджетов
+    def _on_stations_dock_visibility_changed(self, visible: bool):
+        """Обработка изменения видимости панели станций"""
+        if hasattr(self, 'stations_dock_action'):
+            self.stations_dock_action.setChecked(visible)
+
     def _on_points_dock_visibility_changed(self, visible: bool):
         """Обработка изменения видимости панели пунктов"""
         if hasattr(self, 'points_dock_action'):
@@ -1976,6 +2221,10 @@ class MainWindow(QMainWindow):
     def _restore_all_panels(self):
         """Восстановить все панели"""
         # Показать все док-виджеты
+        if hasattr(self, 'stations_dock'):
+            self.stations_dock.setVisible(True)
+            self.stations_dock_action.setChecked(True)
+
         if hasattr(self, 'points_dock'):
             self.points_dock.setVisible(True)
             self.points_dock_action.setChecked(True)

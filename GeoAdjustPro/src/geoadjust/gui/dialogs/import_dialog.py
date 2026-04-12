@@ -81,18 +81,38 @@ class ImportWorker(QThread):
         
         observations = []
         for obs in data.get('observations', []):
+            # Преобразуем типы DAT в стандартные типы
+            obs_type = getattr(obs, 'obs_type', 'height_diff')
+            
+            # Преобразование типов DAT в типы для уравнивания
+            if obs_type in ['backsight', 'foresight', 'intermediate']:
+                # Эти типы преобразуем в height_diff (превышение)
+                obs_type = 'height_diff'
+            
+            # Для превышений используем стандартную точность
+            std_dev = 0.005  # 5 мм для нивелирования
+            if obs_type == 'height_diff':
+                # Типичная точность нивелирования
+                std_dev = 0.005  # 5 мм/км для IV класса
+            elif obs_type == 'distance':
+                std_dev = 0.001  # 1 мм для расстояний
+            
             observations.append({
                 'from_point': getattr(obs, 'from_point', ''),
                 'to_point': getattr(obs, 'to_point', ''),
-                'type': getattr(obs, 'obs_type', 'height_diff'),
+                'type': obs_type,
                 'value': getattr(obs, 'value', 0),
-                'sigma': getattr(obs, 'std_dev', 0.005)
+                'sigma': std_dev
             })
+        
+        # Фильтруем только превышения для нивелирного хода
+        height_diff_obs = [o for o in observations if o['type'] == 'height_diff']
         
         return {
             'points': points,
-            'observations': observations,
-            'metadata': data.get('header_info', {})
+            'observations': height_diff_obs if height_diff_obs else observations,
+            'metadata': data.get('header_info', {}),
+            'original_observations': len(observations)
         }
     
     def _import_gsi(self) -> Dict:
@@ -125,13 +145,46 @@ class ImportWorker(QThread):
                 'to_point': getattr(obs, 'to_point', ''),
                 'type': getattr(obs, 'obs_type', 'direction'),
                 'value': getattr(obs, 'value', 0),
-                'sigma': getattr(obs, 'std_dev', 0.00005)
+                'sigma': getattr(obs, 'std_dev', 0.00005),
+                'station_session_id': getattr(obs, 'station_session_id', ''),
+                'instrument_height': getattr(obs, 'instrument_height', None),
+                'target_height': getattr(obs, 'target_height', None),
             })
+        
+        # Конвертация сессий станций для UI
+        station_sessions = []
+        for session in data.get('station_sessions', []):
+            session_data = {
+                'session_id': session.session_id,
+                'station_name': session.station_name,
+                'instrument_height': session.instrument_height,
+                'target_height': session.target_height,
+                'temperature': session.temperature,
+                'pressure': session.pressure,
+                'num_observations': len(session.observations),
+                'line_start': session.line_start,
+                'line_end': session.line_end,
+                'observations': []
+            }
+            for obs in session.observations:
+                session_data['observations'].append({
+                    'obs_type': obs.obs_type,
+                    'from_point': obs.from_point,
+                    'to_point': obs.to_point,
+                    'value': obs.value,
+                    'line_number': obs.line_number,
+                })
+            station_sessions.append(session_data)
         
         return {
             'points': points,
             'observations': observations,
-            'metadata': {'version': data.get('version', ''), 'encoding': data.get('encoding', '')}
+            'station_sessions': station_sessions,
+            'metadata': {
+                'version': data.get('version', ''),
+                'encoding': data.get('encoding', ''),
+                'num_station_sessions': data.get('num_station_sessions', 0)
+            }
         }
     
     def _import_sdr(self) -> Dict:

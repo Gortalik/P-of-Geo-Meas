@@ -54,3 +54,71 @@ class Observation:
     # Атрибуты для линейных измерений
     temperature: Optional[float] = None
     pressure: Optional[float] = None
+    
+    # Атрибуты для поддержки станций
+    station_id: Optional[str] = None
+    circle_position: Optional[Literal['KL', 'KP']] = None
+
+
+@dataclass
+class Station:
+    """Класс станции для геодезических измерений"""
+    station_id: str
+    point_name: str
+    instrument_height: float
+    target_height: float = 0.0
+    orientation_angle: Optional[float] = None
+    timestamp: Optional[Any] = None
+    observations: List[Observation] = field(default_factory=list)
+    instrument_name: str = ""
+    atmospheric_params: dict = field(default_factory=dict)
+    is_processed: bool = False
+    
+    @property
+    def num_directions(self) -> int:
+        """Количество направлений на станции"""
+        return len([obs for obs in self.observations if obs.obs_type == 'direction'])
+    
+    @property
+    def num_distances(self) -> int:
+        """Количество расстояний на станции"""
+        return len([obs for obs in self.observations if obs.obs_type == 'distance'])
+    
+    def get_observation(self, to_point: str) -> Optional[Observation]:
+        """Получить измерение на указанную цель"""
+        for obs in self.observations:
+            if obs.to_point == to_point:
+                return obs
+        return None
+    
+    def get_observations_by_type(self, obs_type: str) -> List[Observation]:
+        """Получить все измерения указанного типа"""
+        return [obs for obs in self.observations if obs.obs_type == obs_type]
+
+
+@dataclass
+class StationGroup:
+    """Группа станций на одном пункте"""
+    point_name: str
+    stations: List[Station] = field(default_factory=list)
+    
+    def add_station(self, station: Station):
+        """Добавить станцию в группу"""
+        self.stations.append(station)
+    
+    def get_unique_orientations(self) -> List[float]:
+        """Возвращает уникальные ориентировки лимба"""
+        orientations = set()
+        for station in self.stations:
+            if station.orientation_angle is not None:
+                orientations.add(station.orientation_angle)
+        return sorted(list(orientations))
+    
+    def get_total_observations(self) -> int:
+        """Общее количество измерений"""
+        return sum(len(s.observations) for s in self.stations)
+    
+    @property
+    def num_setups(self) -> int:
+        """Количество установок на пункте"""
+        return len(self.stations)

@@ -14,9 +14,61 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTableView,
                              QPushButton, QTabWidget)
 from PyQt5.QtCore import Qt, QAbstractTableModel, pyqtSignal
 from PyQt5.QtGui import QColor, QFont
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 
 from geoadjust.utils import decimal_to_dms, format_dms_compact
+
+
+class StationObservation:
+    """Объединённое измерение на станции (все типы для одной цели)"""
+    def __init__(self, station: str, target: str):
+        self.station = station
+        self.target = target
+        self.direction = None  # горизонтальный угол
+        self.zenith_angle = None  # зенитный угол
+        self.slope_distance = None  # наклонное расстояние
+        self.horizontal_distance = None  # горизонтальное проложение
+        self.direction_value = None
+        self.zenith_value = None
+        self.slope_value = None
+        self.horizontal_value = None
+        self.is_active = True
+        self.angle_unit = 'gons'
+        self._original_obs = []
+    
+    def add_observation(self, obs):
+        """Добавить измерение к группе"""
+        self._original_obs.append(obs)
+        obs_type = self._get_obs_type(obs)
+        value = self._get_value(obs)
+        
+        if obs_type in ['direction', 'azimuth']:
+            self.direction = obs_type
+            self.direction_value = value
+        elif obs_type in ['zenith_angle', 'vertical_angle']:
+            self.zenith_angle = obs_type
+            self.zenith_value = value
+        elif obs_type == 'slope_distance':
+            self.slope_distance = obs_type
+            self.slope_value = value
+        elif obs_type == 'horizontal_distance':
+            self.horizontal_distance = obs_type
+            self.horizontal_value = value
+        
+        if hasattr(obs, 'is_active'):
+            self.is_active = self.is_active and obs.is_active
+        if hasattr(obs, 'angle_unit'):
+            self.angle_unit = obs.angle_unit
+    
+    def _get_obs_type(self, obs) -> str:
+        if isinstance(obs, dict):
+            return obs.get('type', obs.get('obs_type', ''))
+        return getattr(obs, 'obs_type', '')
+    
+    def _get_value(self, obs) -> float:
+        if isinstance(obs, dict):
+            return obs.get('value', 0)
+        return getattr(obs, 'value', 0)
 
 
 class ObservationsTableModel(QAbstractTableModel):
@@ -42,6 +94,7 @@ class ObservationsTableModel(QAbstractTableModel):
         self._observations: List[Any] = []
         self._filtered_observations: List[Any] = []
         self._current_tab = 'total_station'  # По умолчанию тахеометрия
+        self._station_filter: Optional[str] = None  # ID сессии станции для фильтрации
     
     def set_observations(self, observations: List[Any]):
         """Установка списка измерений"""
@@ -62,24 +115,53 @@ class ObservationsTableModel(QAbstractTableModel):
         self.endResetModel()
     
     def _filter_observations(self):
-        """Фильтрация измерений по текущей вкладке"""
+        """Фильтрация измерений по текущей вкладке и станции"""
+        # Сначала фильтруем по типу измерений
         if self._current_tab == 'leveling':
-            self._filtered_observations = [
-                obs for obs in self._observations 
+            filtered = [
+                obs for obs in self._observations
                 if self._get_obs_type(obs) in self.LEVELING_TYPES
             ]
         elif self._current_tab == 'total_station':
-            self._filtered_observations = [
-                obs for obs in self._observations 
+            filtered = [
+                obs for obs in self._observations
                 if self._get_obs_type(obs) in self.TOTAL_STATION_TYPES
             ]
         elif self._current_tab == 'gnss':
-            self._filtered_observations = [
-                obs for obs in self._observations 
+            filtered = [
+                obs for obs in self._observations
                 if self._get_obs_type(obs) in self.GNSS_TYPES
             ]
         else:
-            self._filtered_observations = self._observations
+            filtered = self._observations
+
+        # Затем применяем фильтр по станции, если он установлен
+        if self._station_filter:
+            filtered = [
+                obs for obs in filtered
+                if getattr(obs, 'station_session_id', '') == self._station_filter
+            ]
+
+        # Группируем для тахеометрии
+        if self._current_tab == 'total_station':
+            self._filtered_observations = self._group_by_station_target(filtered)
+        else:
+            self._filtered_observations = filtered
+    
+    def _group_by_station_target(self, observations: List[Any]) -> List[StationObservation]:
+        """Группировка измерений по станции и цели"""
+        groups: Dict[str, StationObservation] = {}
+        
+        for obs in observations:
+            station = self._get_from_point(obs)
+            target = self._get_to_point(obs)
+            key = f"{station}|{target}"
+            
+            if key not in groups:
+                groups[key] = StationObservation(station, target)
+            groups[key].add_observation(obs)
+        
+        return list(groups.values())
     
     def _get_obs_type(self, obs) -> str:
         """Получение типа измерения из объекта или словаря"""
@@ -173,6 +255,11 @@ class ObservationsTableModel(QAbstractTableModel):
     
     def _total_station_data(self, obs, col):
         """Данные для вкладки тахеометрии"""
+        is_grouped = isinstance(obs, StationObservation)
+        
+        if is_grouped:
+            return self._total_station_grouped_data(obs, col)
+        
         obs_type = self._get_obs_type(obs)
         row = self._filtered_observations.index(obs)
         
@@ -185,10 +272,9 @@ class ObservationsTableModel(QAbstractTableModel):
         elif col == 3:  # Горизонтальный угол (DMS)
             if obs_type in ['direction', 'azimuth']:
                 value = self._get_value(obs)
-                # Конвертация из гон в градусы если нужно
                 angle_unit = obs.get('angle_unit', 'gons') if isinstance(obs, dict) else getattr(obs, 'angle_unit', 'gons')
                 if angle_unit == 'gons':
-                    value = value * 0.9  # гоны -> градусы
+                    value = value * 0.9
                 return format_dms_compact(value)
             return "-"
         elif col == 4:  # Зенитный угол (DMS)
@@ -212,6 +298,42 @@ class ObservationsTableModel(QAbstractTableModel):
         elif col == 7:  # Статус
             is_active = obs.get('is_active', True) if isinstance(obs, dict) else getattr(obs, 'is_active', True)
             return "Активно" if is_active else "Исключено"
+        return None
+    
+    def _total_station_grouped_data(self, obs: StationObservation, col):
+        """Данные для сгруппированных измерений (станция + цель)"""
+        row = self._filtered_observations.index(obs)
+        
+        if col == 0:  # №
+            return str(row + 1)
+        elif col == 1:  # Станция
+            return obs.station
+        elif col == 2:  # Цель
+            return obs.target
+        elif col == 3:  # Горизонтальный угол (DMS)
+            if obs.direction_value is not None:
+                value = obs.direction_value
+                if obs.angle_unit == 'gons':
+                    value = value * 0.9
+                return format_dms_compact(value)
+            return "-"
+        elif col == 4:  # Зенитный угол (DMS)
+            if obs.zenith_value is not None:
+                value = obs.zenith_value
+                if obs.angle_unit == 'gons':
+                    value = value * 0.9
+                return format_dms_compact(value)
+            return "-"
+        elif col == 5:  # Наклонное расстояние
+            if obs.slope_value is not None:
+                return f"{obs.slope_value:.4f}"
+            return "-"
+        elif col == 6:  # Горизонтальное расстояние
+            if obs.horizontal_value is not None:
+                return f"{obs.horizontal_value:.4f}"
+            return "-"
+        elif col == 7:  # Статус
+            return "Активно" if obs.is_active else "Исключено"
         return None
     
     def _gnss_data(self, obs, col):
@@ -409,7 +531,28 @@ class ObservationsTableWidget(QWidget):
     def update_data(self, observations):
         """Обновление данных (алиас для set_observations)"""
         self.set_observations(observations)
-    
+
+    def filter_by_station_session(self, session_id: Optional[str] = None):
+        """Фильтрация измерений по сессии станции
+
+        Args:
+            session_id: ID сессии станции. Если None - показать все измерения.
+        """
+        # Устанавливаем фильтр по станции для каждой таблицы
+        self.leveling_table.model._station_filter = session_id
+        self.total_station_table.model._station_filter = session_id
+        self.gnss_table.model._station_filter = session_id
+
+        # Перефильтровываем данные
+        self.leveling_table.model._filter_observations()
+        self.total_station_table.model._filter_observations()
+        self.gnss_table.model._filter_observations()
+
+        # Обновить отображение
+        self.leveling_table.model.layoutChanged.emit()
+        self.total_station_table.model.layoutChanged.emit()
+        self.gnss_table.model.layoutChanged.emit()
+
     def model(self):
         """Возврат модели текущей вкладки"""
         current_table = self.tabs.currentWidget()

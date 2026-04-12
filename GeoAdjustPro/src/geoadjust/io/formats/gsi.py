@@ -129,6 +129,11 @@ class GSIParser:
         '41': 'temperature',
         '42': 'pressure',
         '43': 'humidity',
+        # Нивелирные слова Leica GSI
+        '571': 'leveling_backsight_point',
+        '572': 'leveling_foresight_point',
+        '573': 'leveling_height_diff',
+        '574': 'leveling_distance',
     }
 
     def __init__(self):
@@ -187,22 +192,34 @@ class GSIParser:
             return GSIVersion.V1_0
 
     def _parse_gsi_word(self, word_str: str) -> Optional[GSIWord]:
-        """Разбор информационного слова GSI"""
+        """Разбор информационного слова GSI
+        
+        Поддержка 2-значных и 3-значных номеров слов.
+        Для нивелирных слов Leica (571-574) используется 3-значный номер.
+        """
         word_str = word_str.strip()
         if len(word_str) < 8:
             return None
         
         try:
-            word_num_str = word_str[:2]
+            # Определяем длину номера слова (2 или 3 цифры)
+            # Для слов 57x используем 3 цифры
+            if word_str[:3].isdigit() and word_str[:3].startswith('57'):
+                word_num_str = word_str[:3]
+                identifier_start = 3
+            else:
+                word_num_str = word_str[:2]
+                identifier_start = 2
+            
             if not word_num_str.isdigit():
                 return None
             word_num = int(word_num_str)
             
-            identifier_str = word_str[2:6]
+            identifier_str = word_str[identifier_start:identifier_start+4]
             
-            sign_pos = word_str.find('+', 6)
+            sign_pos = word_str.find('+', identifier_start+4)
             if sign_pos == -1:
-                sign_pos = word_str.find('-', 6)
+                sign_pos = word_str.find('-', identifier_start+4)
             
             if sign_pos == -1:
                 return None
@@ -227,6 +244,14 @@ class GSIParser:
                 decimal_places = 3
             elif word_num in [83, 87, 88]:
                 decimal_places = 4
+            elif word_num in [571, 572, 573, 574]:
+                # Нивелирные слова: 573 - превышение (4 знака после запятой), 574 - расстояние
+                if word_num == 573:
+                    decimal_places = 4
+                elif word_num == 574:
+                    decimal_places = 4
+                else:
+                    decimal_places = 0
             
             value = int(clean_value) / (10 ** decimal_places)
             if sign == '-':
@@ -543,6 +568,7 @@ class GSIParser:
                 has_distance = any(w.number in [15, 16, 17, 18, 33, 34, 35] for w in words)
                 has_height = any(w.number == 7 for w in words)
                 has_zenith = any(w.number in [31, 32] for w in words)
+                has_leveling = any(w.number in [571, 572, 573, 574] for w in words)
 
                 if has_direction:
                     self._process_direction(words, line_num)
@@ -555,6 +581,9 @@ class GSIParser:
 
                 if has_height:
                     self._process_height_diff(words, line_num)
+                
+                if has_leveling:
+                    self._process_leveling(words, line_num)
 
             except Exception as e:
                 error_msg = f"Ошибка разбора строки {line_num}: {str(e)}"

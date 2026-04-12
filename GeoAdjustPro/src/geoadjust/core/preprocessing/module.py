@@ -159,7 +159,7 @@ class PreprocessingModule:
             station_points = set(self._get_from_point(o) for o in angle_obs)
             traverses.append({
                 'type': 'total_station',
-                'stations': list(station_points),
+                'stations': list(station_points),  # Гарантируем, что это список
                 'num_angles': len(angle_obs),
                 'num_distances': len(distance_obs),
                 'total_length': sum(self._get_value(o) for o in distance_obs if self._get_value(o) > 0)
@@ -171,7 +171,7 @@ class PreprocessingModule:
             station_points = set(self._get_from_point(o) for o in level_obs)
             sections.append({
                 'type': 'leveling',
-                'stations': list(station_points),
+                'stations': list(station_points),  # Гарантируем, что это список
                 'num_height_diffs': len(level_obs),
                 'total_elevation_diff': sum(self._get_value(o) for o in level_obs)
             })

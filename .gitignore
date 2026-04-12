@@ -6,21 +6,24 @@ __pycache__/
 *.pyd
 
 # Build artifacts
-build/
 dist/
+build/
 *.egg-info/
 
-# Virtual environments
-venv/
+# Dependencies
 .venv/
-env/
-.ENV/
+venv/
+.env
+.env.local
+*.env.*
 
-# IDE
+# Editors
 .vscode/
 .idea/
-*.swp
-*.swo
+
+# OS
+.DS_Store
+Thumbs.db
 
 # Logs
 *.log
@@ -30,21 +33,7 @@ env/
 coverage/
 htmlcov/
 
-# Temporary files
-*.tmp
-*.temp
-
-# Environment variables
-.env
-.env.local
-*.env.*
-
-# MyPy cache
-.mypy_cache/
-
-# Pytest cache
+# Testing
 .pytest_cache/
-
-# Git
-.git/
+.mypy_cache/
 ```

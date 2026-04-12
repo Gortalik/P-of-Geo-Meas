@@ -15,6 +15,7 @@ from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QIcon
 from datetime import datetime
 from typing import Dict, Any, List, Optional
+from pathlib import Path
 import logging
 
 logger = logging.getLogger(__name__)
@@ -37,10 +38,12 @@ class HistoryEntry:
 class HistoryManager:
     """Менеджер истории изменений"""
     
-    def __init__(self, max_history: int = 100):
+    def __init__(self, max_history: int = 100, project_dir: Optional[Path] = None):
         self.max_history = max_history
+        self.project_dir = project_dir
         self.history: List[HistoryEntry] = []
         self.current_index: int = -1  # -1 означает "нет действий"
+        self._load_from_file()  # Загрузка истории при инициализации
     
     def add_entry(self, entry: HistoryEntry):
         """Добавление записи в историю"""
@@ -56,7 +59,65 @@ class HistoryManager:
             self.history = self.history[-self.max_history:]
             self.current_index = len(self.history) - 1
         
+        self._save_to_file()  # Сохранение в файл
         logger.info(f"История: {entry.description}")
+    
+    def _save_to_file(self):
+        """Сохранение истории в JSON файл"""
+        if not self.project_dir:
+            return
+        
+        history_file = self.project_dir / 'history' / 'history.json'
+        history_file.parent.mkdir(exist_ok=True)
+        
+        try:
+            import json
+            entries_data = []
+            for entry in self.history:
+                entries_data.append({
+                    'timestamp': entry.timestamp.isoformat(),
+                    'action_type': entry.action_type,
+                    'description': entry.description,
+                    'data': entry.data,
+                    'undo_data': entry.undo_data
+                })
+            
+            with open(history_file, 'w', encoding='utf-8') as f:
+                json.dump(entries_data, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            logger.error(f"Ошибка сохранения истории: {e}")
+    
+    def _load_from_file(self):
+        """Загрузка истории из JSON файла"""
+        if not self.project_dir:
+            return
+        
+        history_file = self.project_dir / 'history' / 'history.json'
+        if not history_file.exists():
+            return
+        
+        try:
+            import json
+            with open(history_file, 'r', encoding='utf-8') as f:
+                entries_data = json.load(f)
+            
+            self.history = []
+            for data in entries_data:
+                entry = HistoryEntry(
+                    action_type=data['action_type'],
+                    description=data['description'],
+                    data=data.get('data', {}),
+                )
+                entry.timestamp = datetime.fromisoformat(data['timestamp'])
+                entry.undo_data = data.get('undo_data', {})
+                self.history.append(entry)
+            
+            if self.history:
+                self.current_index = len(self.history) - 1
+        except Exception as e:
+            logger.error(f"Ошибка загрузки истории: {e}")
+            self.history = []
+            self.current_index = -1
     
     def can_undo(self) -> bool:
         """Можно ли отменить действие"""
@@ -107,9 +168,9 @@ class HistoryWidget(QWidget):
     redo_requested = pyqtSignal(object)  # HistoryEntry для повтора
     jump_to_entry = pyqtSignal(int)  # Индекс записи для перехода
     
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, project_dir: Optional[Path] = None):
         super().__init__(parent)
-        self.history_manager = HistoryManager()
+        self.history_manager = HistoryManager(project_dir=project_dir)
         self._init_ui()
     
     def _init_ui(self):

@@ -260,7 +260,10 @@ class ProgramSettingsDialog(QDialog):
         
         layout.addRow(behavior_group)
         
-        layout.addStretch()
+        # QFormLayout не имеет addStretch, используем spacer
+        from PyQt5.QtWidgets import QSpacerItem, QSizePolicy
+        spacer = QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
+        layout.addItem(spacer)
         
         return tab
     
@@ -477,7 +480,10 @@ class ProgramSettingsDialog(QDialog):
         
         layout.addRow(status_group)
         
-        layout.addStretch()
+        # QFormLayout не имеет addStretch, используем spacer
+        from PyQt5.QtWidgets import QSpacerItem, QSizePolicy
+        spacer = QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
+        layout.addItem(spacer)
         
         return tab
     

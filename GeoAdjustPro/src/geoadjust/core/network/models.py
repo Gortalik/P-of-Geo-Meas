@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
-from typing import Literal, Optional, List, Union, Any
+from typing import Literal, Optional, List, Union, Any, Dict
+from datetime import datetime
 import numpy as np
 
 @dataclass
@@ -19,6 +20,33 @@ class NetworkPoint:
     # Географические координаты для работы с геоидом
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+
+
+@dataclass
+class InstrumentSetup:
+    """
+    Одна установка инструмента на пункте
+    (может быть несколько на одном пункте с разной ориентировкой)
+    """
+    setup_id: str                    # Уникальный ID: "P1_SETUP_001"
+    point_id: str                    # Имя пункта стояния: "P1"
+    instrument_name: str             # Прибор: "Leica TS16"
+    instrument_height: float         # Высота инструмента, м
+    target_height: float             # Высота цели по умолчанию, м
+    orientation_angle: Optional[float] = None  # Ориентировка лимба, градусы
+    face_position: Literal['CL', 'CP', 'NONE'] = 'NONE'  # Круг лево/право
+    timestamp: Optional[datetime] = None  # Время установки
+    atmospheric_params: Dict = field(default_factory=dict)  # T, P, Humidity
+    
+    # Статус обработки
+    is_processed: bool = False
+    processing_warnings: List[str] = field(default_factory=list)
+    
+    def __post_init__(self):
+        if self.setup_id is None:
+            self.setup_id = f"{self.point_id}_SETUP_{datetime.now().strftime('%H%M%S')}"
+
+
 
 @dataclass
 class Observation:
@@ -55,9 +83,10 @@ class Observation:
     temperature: Optional[float] = None
     pressure: Optional[float] = None
     
-    # Атрибуты для поддержки станций
-    station_id: Optional[str] = None
-    circle_position: Optional[Literal['KL', 'KP']] = None
+    # Атрибуты для поддержки станций - ОБНОВЛЕНО
+    station_id: Optional[str] = None  # Устарело, использовать from_setup_id
+    from_setup_id: Optional[str] = None  # Привязка к конкретной установке
+    circle_position: Optional[Literal['KL', 'KP', 'CL', 'CP']] = None
 
 
 @dataclass

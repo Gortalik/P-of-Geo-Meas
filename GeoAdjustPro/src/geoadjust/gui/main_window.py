@@ -1641,9 +1641,19 @@ class MainWindow(QMainWindow):
         if not ts_icon.isNull():
             ts_item.setIcon(0, ts_icon)
         
-        traverses = preprocessing_result.get('traverses', [])
+        # traverses - это словарь {'traverses': [...], 'sections': [...], 'gnss_baselines': [...]}
+        traverses_data = preprocessing_result.get('traverses', {})
+        traverses = traverses_data.get('traverses', []) if isinstance(traverses_data, dict) else []
         if traverses:
             for i, traverse in enumerate(traverses):
+                # Защита от некорректного типа данных (строка вместо словаря)
+                if isinstance(traverse, str):
+                    logger.warning(f"Некорректный формат хода {i}: ожидается dict, получена строка '{traverse}'")
+                    continue
+                if not isinstance(traverse, dict):
+                    logger.warning(f"Некорректный тип хода {i}: {type(traverse)}")
+                    continue
+                    
                 stations = traverse.get('stations', [])
                 num_angles = traverse.get('num_angles', 0)
                 num_distances = traverse.get('num_distances', 0)
@@ -1673,9 +1683,18 @@ class MainWindow(QMainWindow):
         if not level_icon.isNull():
             level_item.setIcon(0, level_icon)
         
-        sections = preprocessing_result.get('sections', [])
+        # sections находится внутри traverses_data
+        sections = traverses_data.get('sections', []) if isinstance(traverses_data, dict) else []
         if sections:
             for i, section in enumerate(sections):
+                # Защита от некорректного типа данных (строка вместо словаря)
+                if isinstance(section, str):
+                    logger.warning(f"Некорректный формат секции {i}: ожидается dict, получена строка '{section}'")
+                    continue
+                if not isinstance(section, dict):
+                    logger.warning(f"Некорректный тип секции {i}: {type(section)}")
+                    continue
+                    
                 stations = section.get('stations', [])
                 num_height_diffs = section.get('num_height_diffs', 0)
                 total_elev_diff = section.get('total_elevation_diff', 0)
@@ -1704,9 +1723,18 @@ class MainWindow(QMainWindow):
         if not gnss_icon.isNull():
             gnss_item.setIcon(0, gnss_icon)
         
-        baselines = preprocessing_result.get('gnss_baselines', [])
+        # gnss_baselines находится внутри traverses_data
+        baselines = traverses_data.get('gnss_baselines', []) if isinstance(traverses_data, dict) else []
         if baselines:
             for i, bl in enumerate(baselines):
+                # Защита от некорректного типа данных (строка вместо словаря)
+                if isinstance(bl, str):
+                    logger.warning(f"Некорректный формат базовой линии {i}: ожидается dict, получена строка '{bl}'")
+                    continue
+                if not isinstance(bl, dict):
+                    logger.warning(f"Некорректный тип базовой линии {i}: {type(bl)}")
+                    continue
+                    
                 from_st = bl.get('from_station', '?')
                 to_st = bl.get('to_station', '?')
                 dx = bl.get('dx', 0)

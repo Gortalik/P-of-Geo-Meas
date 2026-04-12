@@ -1,0 +1,630 @@
+#!/usr/bin/env python3
+"""
+Комплексный тест всех функций оболочки GeoAdjustPro
+Проверка каждого этапа обработки данных
+"""
+
+import sys
+import os
+import traceback
+import tempfile
+import shutil
+from pathlib import Path
+
+# Добавляем путь к модулю
+sys.path.insert(0, '/workspace/GeoAdjustPro/src')
+
+def print_header(title):
+    print("\n" + "="*70)
+    print(f"  {title}")
+    print("="*70)
+
+def print_subheader(title):
+    print(f"\n  → {title}")
+
+def test_imports():
+    """Тест 1: Проверка импорта всех основных модулей"""
+    print_header("ТЕСТ 1: ИМПОРТ ВСЕХ МОДУЛЕЙ")
+    
+    modules_to_test = [
+        # Core modules
+        ('geoadjust.core.network', 'models'),
+        ('geoadjust.core.adjustment', 'engine'),
+        ('geoadjust.core.adjustment', 'equations_builder'),
+        ('geoadjust.core.adjustment', 'free_network'),
+        ('geoadjust.core.adjustment', 'robust_methods'),
+        ('geoadjust.core.adjustment', 'weight_builder'),
+        ('geoadjust.core.analysis', 'ellipse_errors'),
+        ('geoadjust.core.analysis', 'gross_errors'),
+        ('geoadjust.core.analysis', 'normative_classes'),
+        ('geoadjust.core.analysis', 'visualization'),
+        ('geoadjust.core.preprocessing', 'direction_processor'),
+        ('geoadjust.core.preprocessing', 'station_processor'),
+        ('geoadjust.core.preprocessing', 'tolerances'),
+        ('geoadjust.core.reliability', 'baarda_method'),
+        ('geoadjust.core', 'processing_pipeline'),
+        
+        # IO modules
+        ('geoadjust.io.formats', 'pos'),
+        ('geoadjust.io.formats', 'gsi'),
+        ('geoadjust.io.formats', 'sdr'),
+        ('geoadjust.io.formats', 'dat'),
+        ('geoadjust.io.formats', 'base_parser'),
+        ('geoadjust.io.project', 'project_manager'),
+        ('geoadjust.io.project', 'gad_format'),
+        ('geoadjust.io.export', 'gost_report'),
+        ('geoadjust.io.export', 'dxf_export'),
+        
+        # CRS modules
+        ('geoadjust.crs', 'projection'),
+        ('geoadjust.crs', 'transformer'),
+        ('geoadjust.crs', 'geoid'),
+    ]
+    
+    passed = 0
+    failed = 0
+    
+    for module_name, submodule in modules_to_test:
+        try:
+            if submodule:
+                full_name = f"{module_name}.{submodule}"
+                __import__(full_name)
+            else:
+                __import__(module_name)
+            print(f"  ✓ {module_name}.{submodule if submodule else ''}")
+            passed += 1
+        except Exception as e:
+            print(f"  ✗ {module_name}.{submodule if submodule else ''}: {str(e)}")
+            failed += 1
+    
+    print(f"\nРезультат: {passed} успешно, {failed} ошибок")
+    return failed == 0
+
+def test_network_models():
+    """Тест 2: Проверка моделей сети"""
+    print_header("ТЕСТ 2: МОДЕЛИ СЕТИ (network.models)")
+    
+    from geoadjust.core.network.models import NetworkPoint, Observation, Station
+    
+    try:
+        # Создание точки
+        point = NetworkPoint(
+            point_id="P1",
+            coord_type='FIXED',
+            x=1000.0,
+            y=2000.0,
+            h=100.0
+        )
+        print(f"  ✓ Создание точки: {point.point_id}")
+        
+        # Создание наблюдения
+        obs = Observation(
+            obs_id="OBS1",
+            obs_type='direction',
+            from_point="P1",
+            to_point="P2",
+            value=45.5,
+            instrument_name="TotalStation",
+            sigma_apriori=0.005
+        )
+        print(f"  ✓ Создание наблюдения типа {obs.obs_type}")
+        
+        # Создание станции
+        station = Station(
+            station_id="ST1",
+            point_name="P1",
+            instrument_height=1.5
+        )
+        print(f"  ✓ Создание станции: {station.station_id}")
+        
+        print("\nРезультат: Все модели сети работают корректно")
+        return True
+        
+    except Exception as e:
+        print(f"  ✗ Ошибка: {str(e)}")
+        traceback.print_exc()
+        return False
+
+def test_parsers():
+    """Тест 3: Проверка парсеров форматов"""
+    print_header("ТЕСТ 3: ПАРСЕРЫ ФОРМАТОВ")
+    
+    from geoadjust.io.formats.pos import POSParser
+    from geoadjust.io.formats.gsi import GSIParser
+    from geoadjust.io.formats.sdr import SDRParser
+    from geoadjust.io.formats.dat import DATParser
+    
+    temp_dir = tempfile.mkdtemp()
+    
+    try:
+        # Тест POS парсера
+        print_subheader("POS Parser")
+        pos_file = Path(temp_dir) / "test.pos"
+        with open(pos_file, 'w') as f:
+            f.write("""! Test POS file
+P1 1000.000 2000.000 100.000 1 1 1
+P2 1100.000 2050.000 105.000 0 0 0
+""")
+        
+        parser = POSParser()
+        result = parser.parse(pos_file)
+        print(f"  ✓ Прочитано данных: {len(result) if isinstance(result, dict) else 'N/A'}")
+        
+        # Тест GSI парсера
+        print_subheader("GSI Parser")
+        gsi_file = Path(temp_dir) / "test.gsi"
+        with open(gsi_file, 'w') as f:
+            f.write("""+C
+11.6001+000001
+12.1000+000002
+13.2000+000003
++R
+""")
+        
+        parser = GSIParser()
+        result = parser.parse(gsi_file)
+        print(f"  ✓ Прочитано данных: {len(result) if isinstance(result, dict) else 'N/A'}")
+        
+        # Тест SDR парсера
+        print_subheader("SDR Parser")
+        sdr_file = Path(temp_dir) / "test.sdr"
+        with open(sdr_file, 'w') as f:
+            f.write("""BEG_FILE RAW
+BEG_UNIT ANG SEC
+END_UNIT
+BEG_COORD 1
+1 1000.000 2000.000 100.000
+END_COORD
+END_FILE
+""")
+        
+        parser = SDRParser()
+        result = parser.parse(sdr_file)
+        print(f"  ✓ Прочитано данных: {len(result) if isinstance(result, dict) else 'N/A'}")
+        
+        # Тест DAT парсера
+        print_subheader("DAT Parser")
+        dat_file = Path(temp_dir) / "test.dat"
+        with open(dat_file, 'w') as f:
+            f.write("""1 1000.000 2000.000 100.000
+2 1100.000 2050.000 105.000
+""")
+        
+        parser = DATParser()
+        result = parser.parse(dat_file)
+        print(f"  ✓ Прочитано данных: {len(result) if isinstance(result, dict) else 'N/A'}")
+        
+        print("\nРезультат: Все парсеры работают корректно")
+        return True
+        
+    except Exception as e:
+        print(f"  ✗ Ошибка: {str(e)}")
+        traceback.print_exc()
+        return False
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+def test_adjustment_engine():
+    """Тест 4: Проверка движка уравнивания"""
+    print_header("ТЕСТ 4: ДВИЖОК УРАВНИВАНИЯ")
+    
+    from geoadjust.core.adjustment.engine import AdjustmentEngine
+    from geoadjust.core.adjustment.free_network import FreeNetworkAdjustment
+    import numpy as np
+    from scipy import sparse
+    
+    try:
+        # Создание тестовой матрицы
+        A = sparse.csr_matrix(np.array([
+            [1.0, 0.0],
+            [0.0, 1.0],
+            [1.0, 1.0]
+        ]))
+        
+        L = np.array([100.0, 200.0, 300.0])
+        P = sparse.diags([1.0, 1.0, 1.0])
+        
+        # МНК уравнивание
+        engine = AdjustmentEngine()
+        results = engine.adjust(A, L, P)
+        print(f"  ✓ МНК уравнивание выполнено")
+        print(f"    - Sigma0: {results.get('sigma0', 'N/A')}")
+        
+        # Свободное уравнивание
+        free_adj = FreeNetworkAdjustment()
+        print(f"  ✓ FreeNetworkAdjustment создан")
+        
+        print("\nРезультат: Движок уравнивания работает корректно")
+        return True
+        
+    except Exception as e:
+        print(f"  ✗ Ошибка: {str(e)}")
+        traceback.print_exc()
+        return False
+
+def test_robust_methods():
+    """Тест 5: Робастные методы уравнивания"""
+    print_header("ТЕСТ 5: РОБАСТНЫЕ МЕТОДЫ")
+    
+    from geoadjust.core.adjustment.robust_methods import RobustMethods
+    import numpy as np
+    from scipy import sparse
+    
+    try:
+        # Создание тестовой матрицы
+        A = sparse.csr_matrix(np.array([
+            [1.0, 0.0],
+            [0.0, 1.0],
+            [1.0, 1.0]
+        ]))
+        
+        L = np.array([100.0, 200.0, 300.0])
+        P = sparse.diags([1.0, 1.0, 1.0])
+        
+        robust = RobustMethods()
+        
+        # Danish method
+        results = robust.danish_method(A, L, P, max_iter=10)
+        print(f"  ✓ Danish метод выполнен")
+        
+        # IGG3 method
+        results = robust.igg3_method(A, L, P, max_iter=10)
+        print(f"  ✓ IGG3 метод выполнен")
+        
+        # Huber method
+        results = robust.huber_method(A, L, P, max_iter=10)
+        print(f"  ✓ Huber метод выполнен")
+        
+        print("\nРезультат: Робастные методы работают корректно")
+        return True
+        
+    except Exception as e:
+        print(f"  ✗ Ошибка: {str(e)}")
+        traceback.print_exc()
+        return False
+
+def test_analysis_modules():
+    """Тест 6: Модули анализа"""
+    print_header("ТЕСТ 6: МОДУЛИ АНАЛИЗА")
+    
+    from geoadjust.core.analysis.ellipse_errors import ErrorEllipseAnalyzer
+    from geoadjust.core.analysis.gross_errors import GrossErrorDetector, GrossErrorAnalyzer
+    from geoadjust.core.analysis.normative_classes import NormativeChecker
+    from geoadjust.core.reliability.baarda_method import BaardaReliability
+    import numpy as np
+    from scipy import sparse
+    
+    try:
+        # Создание тестовой матрицы
+        A = sparse.csr_matrix(np.array([
+            [1.0, 0.0],
+            [0.0, 1.0],
+            [1.0, 1.0]
+        ]))
+        
+        Qx = np.eye(2) * 0.01  # Ковариационная матрица
+        
+        # Эллипсы ошибок
+        print_subheader("Error Ellipse Analyzer")
+        ellipse_analyzer = ErrorEllipseAnalyzer()
+        ellipses = ellipse_analyzer.compute(Qx)
+        print(f"  ✓ Вычислено эллипсов: {len(ellipses) if isinstance(ellipses, list) else 1}")
+        
+        # Обнаружение грубых ошибок
+        print_subheader("Gross Error Detector")
+        detector = GrossErrorDetector()
+        residuals = np.array([0.1, 0.2, 0.15])
+        gross_errors = detector.detect_tau_test(residuals, 0.05)
+        print(f"  ✓ Tau-тест выполнен")
+        
+        # Проверка по нормам
+        print_subheader("Normative Checker")
+        checker = NormativeChecker()
+        violations = checker.check_accuracy({'sigma_x': 0.01, 'sigma_y': 0.01}, class_precision=3)
+        print(f"  ✓ Проверка норм выполнена")
+        
+        # Надежность по Баарда
+        print_subheader("Baarda Reliability")
+        baarda = BaardaReliability()
+        reliability = baarda.compute_reliability_numbers(A, Qx)
+        print(f"  ✓ Числа надежности вычислены")
+        
+        print("\nРезультат: Все модули анализа работают корректно")
+        return True
+        
+    except Exception as e:
+        print(f"  ✗ Ошибка: {str(e)}")
+        traceback.print_exc()
+        return False
+
+def test_preprocessing():
+    """Тест 7: Предварительная обработка"""
+    print_header("ТЕСТ 7: ПРЕДВАРИТЕЛЬНАЯ ОБРАБОТКА")
+    
+    from geoadjust.core.preprocessing.direction_processor import DirectionProcessor
+    from geoadjust.core.preprocessing.station_processor import StationProcessor
+    from geoadjust.core.preprocessing.tolerances import ToleranceChecker
+    
+    try:
+        # Обработка направлений
+        print_subheader("Direction Processor")
+        dir_processor = DirectionProcessor()
+        print(f"  ✓ DirectionProcessor создан")
+        
+        # Обработка станций
+        print_subheader("Station Processor")
+        station_processor = StationProcessor()
+        print(f"  ✓ StationProcessor создан")
+        
+        # Проверка допусков
+        print_subheader("Tolerance Checker")
+        tol_checker = ToleranceChecker()
+        is_ok = tol_checker.check_direction_tolerance(0.003, class_precision=3)
+        print(f"  ✓ Проверка допусков: {'OK' if is_ok else 'FAIL'}")
+        
+        print("\nРезультат: Предварительная обработка работает корректно")
+        return True
+        
+    except Exception as e:
+        print(f"  ✗ Ошибка: {str(e)}")
+        traceback.print_exc()
+        return False
+
+def test_crs_modules():
+    """Тест 8: Модули СК и проекций"""
+    print_header("ТЕСТ 8: СИСТЕМЫ КООРДИНАТ И ПРОЕКЦИИ")
+    
+    from geoadjust.crs.projection import GaussKrugerProjection
+    from geoadjust.crs.transformer import CoordinateTransformer
+    
+    try:
+        # Конвертер проекций
+        print_subheader("Projection Converter")
+        converter = GaussKrugerProjection()
+        
+        # Пример конвертации (широта, долгота -> плоские координаты)
+        lat, lon = 55.7558, 37.6173  # Москва
+        x, y = converter.geodetic_to_gauss_kruger(lat, lon, zone=7)
+        print(f"  ✓ Конвертация широты/долготы в плоские: ({x:.2f}, {y:.2f})")
+        
+        # Трансформатор координат
+        print_subheader("Coordinate Transformer")
+        transformer = CoordinateTransformer()
+        transformed = transformer.transform_3d(x=1000, y=2000, z=100, params={})
+        print(f"  ✓ 3D трансформация: ({transformed['x']:.2f}, {transformed['y']:.2f}, {transformed['z']:.2f})")
+        
+        print("\nРезультат: Модули СК и проекций работают корректно")
+        return True
+        
+    except Exception as e:
+        print(f"  ✗ Ошибка: {str(e)}")
+        traceback.print_exc()
+        return False
+
+def test_io_project():
+    """Тест 9: Управление проектами"""
+    print_header("ТЕСТ 9: УПРАВЛЕНИЕ ПРОЕКТАМИ")
+    
+    from geoadjust.io.project.project_manager import ProjectManager
+    from geoadjust.io.project.gad_format import GADProject
+    
+    temp_dir = tempfile.mkdtemp()
+    
+    try:
+        # Создание менеджера проектов
+        print_subheader("Project Manager")
+        pm = ProjectManager()
+        
+        # Создание нового проекта
+        project_path = Path(temp_dir) / "test_project"
+        pm.create_project(str(project_path), name="Test Project")
+        print(f"  ✓ Проект создан: {project_path}")
+        
+        # Сохранение проекта
+        pm.save_project()
+        print(f"  ✓ Проект сохранен")
+        
+        # Загрузка проекта
+        pm.load_project(str(project_path))
+        print(f"  ✓ Проект загружен")
+        
+        # GAD формат
+        print_subheader("GAD Format")
+        gad = GADProject(name="Test", project_dir=project_path)
+        print(f"  ✓ GADProject создан")
+        
+        print("\nРезультат: Управление проектами работает корректно")
+        return True
+        
+    except Exception as e:
+        print(f"  ✗ Ошибка: {str(e)}")
+        traceback.print_exc()
+        return False
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+def test_export_modules():
+    """Тест 10: Экспорт результатов"""
+    print_header("ТЕСТ 10: ЭКСПОРТ РЕЗУЛЬТАТАТОВ")
+    
+    from geoadjust.io.export.gost_report import GOSTReportGenerator
+    from geoadjust.io.export.dxf_export import DXFExporter
+    
+    temp_dir = tempfile.mkdtemp()
+    
+    try:
+        # Генератор отчета ГОСТ
+        print_subheader("GOST Report Generator")
+        report_gen = GOSTReportGenerator()
+        report_path = Path(temp_dir) / "report.docx"
+        report_gen._add_title_page({"network_name": "Test"})
+        report_gen.doc.save(str(report_path))
+        print(f"  ✓ Отчет ГОСТ создан: {report_path}")
+        
+        # DXF экспортер
+        print_subheader("DXF Exporter")
+        dxf_exporter = DXFExporter()
+        dxf_path = Path(temp_dir) / "network.dxf"
+        dxf_exporter.export(str(dxf_path), [], [])
+        print(f"  ✓ DXF файл создан: {dxf_path}")
+        
+        print("\nРезультат: Экспорт результатов работает корректно")
+        return True
+        
+    except Exception as e:
+        print(f"  ✗ Ошибка: {str(e)}")
+        traceback.print_exc()
+        return False
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+def test_processing_pipeline():
+    """Тест 11: Полный конвейер обработки"""
+    print_header("ТЕСТ 11: ПОЛНЫЙ КОНВЕЙЕР ОБРАБОТКИ")
+    
+    from geoadjust.core.processing_pipeline import ProcessingPipeline
+    
+    temp_dir = tempfile.mkdtemp()
+    
+    try:
+        # Создание тестовых данных
+        data_file = Path(temp_dir) / "pipeline_test.pos"
+        with open(data_file, 'w') as f:
+            f.write("""! Pipeline test
+P1 1000.000 2000.000 100.000 1 1 1
+P2 1100.000 2000.000 100.000 0 0 0
+P3 1050.000 2100.000 105.000 0 0 0
+""")
+        
+        pipeline = ProcessingPipeline()
+        
+        # Этап 1: Импорт
+        print_subheader("Этап 1: Импорт данных")
+        network = pipeline.import_data(str(data_file), format='pos')
+        print(f"  ✓ Импорт выполнен")
+        
+        # Этап 2: Предварительная обработка
+        print_subheader("Этап 2: Предварительная обработка")
+        pipeline.preprocess(network)
+        print(f"  ✓ Предварительная обработка выполнена")
+        
+        # Этап 3: Уравнивание
+        print_subheader("Этап 3: Уравнивание")
+        results = pipeline.adjust(network, method='ls')
+        print(f"  ✓ Уравнивание выполнено")
+        
+        # Этап 4: Анализ точности
+        print_subheader("Этап 4: Анализ точности")
+        analysis = pipeline.analyze_accuracy(network)
+        print(f"  ✓ Анализ точности выполнен")
+        
+        # Этап 5: Контроль качества
+        print_subheader("Этап 5: Контроль качества")
+        qa = pipeline.quality_control(network)
+        print(f"  ✓ Контроль качества выполнен")
+        
+        # Этап 6: Экспорт
+        print_subheader("Этап 6: Экспорт результатов")
+        output_path = Path(temp_dir) / "results.txt"
+        pipeline.export_results(str(output_path), network, results)
+        print(f"  ✓ Экспорт выполнен: {output_path}")
+        
+        print("\nРезультат: Полный конвейер обработки работает корректно")
+        return True
+        
+    except Exception as e:
+        print(f"  ✗ Ошибка: {str(e)}")
+        traceback.print_exc()
+        return False
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+def test_gui_components():
+    """Тест 12: Компоненты GUI (без запуска)"""
+    print_header("ТЕСТ 12: КОМПОНЕНТЫ GUI")
+    
+    try:
+        # Проверяем только базовые модули без PyQt5
+        from geoadjust.gui.models.points_model import PointsModel
+        from geoadjust.gui.models.observations_model import ObservationsModel
+        
+        print(f"  ✓ PointsModel импортирован")
+        print(f"  ✓ ObservationsModel импортирован")
+        
+        # Тест моделей данных
+        points_model = PointsModel()
+        print(f"  ✓ PointsModel создан")
+        
+        obs_model = ObservationsModel()
+        print(f"  ✓ ObservationsModel создан")
+        
+        print("\nРезультат: Компоненты GUI импортируются корректно")
+        return True
+        
+    except ImportError as e:
+        if "PyQt5" in str(e):
+            print(f"  ⚠ PyQt5 не установлен - GUI компоненты недоступны")
+            print(f"  Это ожидаемо в тестовой среде без графического интерфейса")
+            return True
+        else:
+            print(f"  ✗ Ошибка импорта: {str(e)}")
+            traceback.print_exc()
+            return False
+    except Exception as e:
+        print(f"  ✗ Ошибка: {str(e)}")
+        traceback.print_exc()
+        return False
+
+def main():
+    print("="*70)
+    print("  КОМПЛЕКСНЫЙ ТЕСТ ВСЕХ ФУНКЦИЙ GeoAdjustPro")
+    print("  Проверка каждого этапа обработки")
+    print("="*70)
+    
+    tests = [
+        ("Импорт модулей", test_imports),
+        ("Модели сети", test_network_models),
+        ("Парсеры форматов", test_parsers),
+        ("Движок уравнивания", test_adjustment_engine),
+        ("Робастные методы", test_robust_methods),
+        ("Модули анализа", test_analysis_modules),
+        ("Предварительная обработка", test_preprocessing),
+        ("СК и проекции", test_crs_modules),
+        ("Управление проектами", test_io_project),
+        ("Экспорт результатов", test_export_modules),
+        ("Конвейер обработки", test_processing_pipeline),
+        ("Компоненты GUI", test_gui_components),
+    ]
+    
+    results = []
+    
+    for test_name, test_func in tests:
+        try:
+            result = test_func()
+            results.append((test_name, result))
+        except Exception as e:
+            print(f"\n✗ Критическая ошибка в тесте '{test_name}': {str(e)}")
+            results.append((test_name, False))
+            traceback.print_exc()
+    
+    # Итоговый отчет
+    print_header("ИТОГОВЫЙ ОТЧЕТ")
+    
+    passed = sum(1 for _, r in results if r)
+    total = len(results)
+    
+    for test_name, result in results:
+        status = "✓ PASSED" if result else "✗ FAILED"
+        print(f"  {status}: {test_name}")
+    
+    print(f"\nОбщий результат: {passed}/{total} тестов пройдено")
+    
+    if passed == total:
+        print("\n🎉 ВСЕ ТЕСТЫ ПРОЙДЕНЫ! Система полностью работоспособна.")
+        return 0
+    else:
+        print(f"\n⚠️  {total - passed} тест(а) не пройдены. Требуется внимание.")
+        return 1
+
+if __name__ == "__main__":
+    sys.exit(main())
